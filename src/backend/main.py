@@ -1,0 +1,594 @@
+
+from flask import Flask, request, jsonify, send_from_directory
+app = Flask(__name__)
+import os
+import re
+import random
+from datetime import datetime
+from openai import OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+from flask_cors import CORS
+import time
+CORS(app)
+
+# Hold the thread across sessions
+saved_thread = None
+thread_cache = {}
+
+@app.route('/api/new-daily-task', methods=['POST'])
+def new_daily_task():
+    data = request.json
+    previous_task = data.get("previousTask", "")
+
+    # Pull in every task you define elsewhere
+    all_tasks = get_all_tasks()
+    # Exclude the one they just skipped
+    candidate_tasks = [t for t in all_tasks if t != previous_task]
+    # Choose a new one (or fallback to the same if it's the only option)
+    new_task = random.choice(candidate_tasks) if candidate_tasks else previous_task
+
+    return jsonify({"newTask": new_task})
+
+def pick_new_base_task(exclude_task):
+    available_tasks = list(habit_progressions.keys())
+    available_tasks = [task for task in available_tasks if task != exclude_task]
+    return random.choice(available_tasks) if available_tasks else exclude_task
+def get_next_task(current_task, focus_area, difficulty):
+    try:
+        options = habit_progressions.get(current_task, [])
+        if not options:
+            return habit_progressions.get(focus_area, [current_task])[0]
+        current_index = options.index(current_task) if current_task in options else -1
+        next_index = (current_index + 1) % len(options)
+        return options[next_index]
+    except Exception:
+        return habit_progressions.get(focus_area, [current_task])[0]
+
+
+# Sample data storage
+users = {
+    "testuser": {
+        "consecutive_days": 0,
+        "total_days_completed": 0,
+        "best_gapless_streak": 0,
+        "current_task": "No task assigned.",
+        "difficulty": 1,
+        "focus_areas_ordered": ["Physical Health", "Nutrition", "Sleep & Recovery"],
+        "current_focus_area": "Physical Health",
+        "missed_days_in_row": 0,
+        "days_elapsed": 0,
+        "last_report_day": None,
+        "last_report_content": None,
+    }
+}
+
+# Reset all user progress if server is restarted
+for user_data in users.values():
+    user_data["consecutive_days"] = 0
+    user_data["total_days_completed"] = 0
+    user_data["best_gapless_streak"] = 0
+    user_data["days_elapsed"] = 0
+    user_data["missed_days_in_row"] = 0
+    user_data["last_report_day"] = None
+    user_data["last_report_content"] = None
+
+habit_progressions = {
+    "Stretch every morning": [
+        "Stretch every morning for 5 minutes",
+        "Stretch every morning and do 5 pushups",
+        "Stretch and short walk every morning"
+    ],
+    "Eat one extra vegetable": [
+        "Eat two extra vegetables",
+        "Eat one salad per day",
+        "Eat plant-based for one meal per day"
+    ],
+    "Sleep 7+ hours": [
+        "Sleep 8+ hours",
+        "Sleep 8 hours and wake up consistently",
+        "No screens 1 hour before bed"
+    ]
+}
+
+def get_all_tasks():
+    tasks = []
+    for options in habit_progressions.values():
+        tasks.extend(options)
+    return list(set(tasks))
+
+@app.route('/generate-plan', methods=['POST'])
+def generate_plan():
+    data = request.json
+    scores = data.get('scores', {})
+    user_id = data.get('user_id', 'testuser')
+
+    # Map focus areas to possible habits
+    habit_map = {
+        "Physical Health": [
+            "Stretch every morning",
+            "Stretch every morning and walk 5 minutes",
+            "Morning yoga session (10 min)"
+        ],
+        "Nutrition": [
+            "Eat one extra vegetable",
+            "Eat two extra vegetables",
+            "One plant-based meal per day"
+        ],
+        "Sleep & Recovery": [
+            "Sleep 7+ hours",
+            "Sleep 8+ hours",
+            "No screens 1 hour before bed"
+        ],
+        "Emotional Health": [
+            "Meditate 5 minutes",
+            "Meditate 10 minutes",
+            "Gratitude journaling + 10 min meditation"
+        ],
+        "Social Connection": [
+            "Message one friend",
+            "Plan a social outing",
+            "Attend a group event or meetup"
+        ],
+        "Habits": [
+            "Use a habit tracker daily",
+            "Set visual cues for habits",
+            "Maintain a daily consistency journal"
+        ],
+        "Medical History": [
+            "Daily health logging",
+            "Monitor vitals weekly",
+            "Consult a professional for screening"
+        ]
+    }
+
+    if user_id not in users:
+        if scores:
+            ordered_areas = sorted(scores, key=scores.get)
+        else:
+            ordered_areas = ["Physical Health", "Nutrition", "Sleep & Recovery", "Emotional Health", "Social Connection", "Habits", "Medical History"]
+        users[user_id] = {
+            "consecutive_days": 0,
+            "total_days_completed": 0,
+            "best_gapless_streak": 0,
+            "streak": 0,
+            "focus_areas_ordered": ordered_areas,
+            "current_focus_area": ordered_areas[0],
+            "difficulty": 1,
+            "current_task": habit_map[ordered_areas[0]][0],
+            "start_date": datetime.now().date().isoformat(),
+            "days_elapsed": 0,
+            "missed_days_in_row": 0,
+            "last_report_day": None,
+            "last_report_content": None,
+        }
+
+    # Find weakest focus areas sorted
+    if scores:
+        ordered_areas = sorted(scores, key=scores.get)
+    else:
+        ordered_areas = ["Physical Health", "Nutrition", "Sleep & Recovery", "Emotional Health", "Social Connection", "Habits", "Medical History"]
+
+    focus_areas = ordered_areas[:3] if len(ordered_areas) >= 3 else ordered_areas
+
+    # Pick one suggested habit from each focus area
+    suggested_habits = []
+    for area in focus_areas:
+        suggested_habits.append(habit_map.get(area, ["Stretch every morning"])[0])
+
+    users[user_id]["focus_areas_ordered"] = ordered_areas
+    users[user_id]["current_focus_area"] = ordered_areas[0]
+    users[user_id]["difficulty"] = 1
+    users[user_id]["current_task"] = habit_map[ordered_areas[0]][0]
+    users[user_id]["consecutive_days"] = 0
+    users[user_id]["total_days_completed"] = 0
+    users[user_id]["best_gapless_streak"] = 0
+    if "start_date" not in users[user_id]:
+        users[user_id]["start_date"] = datetime.now().date().isoformat()
+    if "missed_days_in_row" not in users[user_id]:
+        users[user_id]["missed_days_in_row"] = 0
+    if "last_report_day" not in users[user_id]:
+        users[user_id]["last_report_day"] = None
+    if "last_report_content" not in users[user_id]:
+        users[user_id]["last_report_content"] = None
+
+    return jsonify({
+        "estimated_timeline_weeks": 6,
+        "focus_areas": focus_areas,
+        "suggested_habits": suggested_habits,
+        "assigned_task": users[user_id]["current_task"],
+        "current_focus_area": users[user_id]["current_focus_area"],
+        "difficulty": users[user_id]["difficulty"],
+        "consecutive_days": users[user_id]["consecutive_days"],
+        "missed_days_in_row": users[user_id]["missed_days_in_row"]
+    })
+
+@app.route('/check-in', methods=['POST'])
+def check_in():
+    data = request.json
+    user_id = data.get('user_id')
+    status = data.get('status')
+
+    user = users.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    user["days_elapsed"] = user.get("days_elapsed", 0) + 1
+
+    message = ""
+    habit_map = {
+        "Physical Health": [
+            "Stretch every morning",
+            "Stretch every morning and walk 5 minutes",
+            "Morning yoga session (10 min)"
+        ],
+        "Nutrition": [
+            "Eat one extra vegetable",
+            "Eat two extra vegetables",
+            "One plant-based meal per day"
+        ],
+        "Sleep & Recovery": [
+            "Sleep 7+ hours",
+            "Sleep 8+ hours",
+            "No screens 1 hour before bed"
+        ],
+        "Emotional Health": [
+            "Meditate 5 minutes",
+            "Meditate 10 minutes",
+            "Gratitude journaling + 10 min meditation"
+        ],
+        "Social Connection": [
+            "Message one friend",
+            "Plan a social outing",
+            "Attend a group event or meetup"
+        ],
+        "Habits": [
+            "Use a habit tracker daily",
+            "Set visual cues for habits",
+            "Maintain a daily consistency journal"
+        ],
+        "Medical History": [
+            "Daily health logging",
+            "Monitor vitals weekly",
+            "Consult a professional for screening"
+        ]
+    }
+
+    if status == "done":
+        user["total_days_completed"] = user.get("total_days_completed", 0) + 1
+        user["consecutive_days"] = user.get("consecutive_days", 0) + 1
+        user["best_gapless_streak"] = max(user.get("best_gapless_streak", 0), user["consecutive_days"])
+        user["missed_days_in_row"] = 0
+
+        # Rotate to next task at same difficulty if available, else repeat
+        current_focus = user["current_focus_area"]
+        difficulty = user["difficulty"]
+        focus_areas_ordered = user["focus_areas_ordered"]
+        task_options = habit_map.get(current_focus, [])
+        # Only rotate if not promoting difficulty/focus area
+        if user["total_days_completed"] % 3 == 0:
+            if difficulty < 3:
+                # Promote difficulty level
+                user["difficulty"] += 1
+                task_options = habit_map[current_focus]
+                if user["difficulty"] - 1 < len(task_options):
+                    user["current_task"] = task_options[user["difficulty"] - 1]
+                else:
+                    user["current_task"] = get_next_task(user["current_task"], current_focus, user["difficulty"])
+                message = f"You've advanced to difficulty level {user['difficulty']} in {current_focus}: {user['current_task']}"
+            else:
+                # Move to next focus area
+                try:
+                    current_index = focus_areas_ordered.index(current_focus)
+                    next_index = current_index + 1
+                    if next_index < len(focus_areas_ordered):
+                        new_focus = focus_areas_ordered[next_index]
+                        user["current_focus_area"] = new_focus
+                        user["difficulty"] = 1
+                        user["current_task"] = habit_map[new_focus][0]
+                        message = f"Great job! Moving on to next focus area: {new_focus} - {user['current_task']}"
+                    else:
+                        # Restart from first focus area if all completed
+                        new_focus = focus_areas_ordered[0]
+                        user["current_focus_area"] = new_focus
+                        user["difficulty"] = 1
+                        user["current_task"] = habit_map[new_focus][0]
+                        message = f"You've mastered all focus areas! Restarting with: {new_focus} - {user['current_task']}"
+                except ValueError:
+                    # If current_focus_area not in list, reset
+                    new_focus = focus_areas_ordered[0]
+                    user["current_focus_area"] = new_focus
+                    user["difficulty"] = 1
+                    user["current_task"] = habit_map[new_focus][0]
+                    message = f"Resetting focus area to: {new_focus} - {user['current_task']}"
+        else:
+            # Rotate within same difficulty (if possible)
+            if user["difficulty"] - 1 < len(task_options):
+                # Rotate among tasks at this difficulty if available (simulate rotation)
+                # Only rotate if there are multiple tasks at this level
+                if len(task_options) > 1:
+                    current_index = task_options.index(user["current_task"]) if user["current_task"] in task_options else -1
+                    next_index = (current_index + 1) % len(task_options)
+                    user["current_task"] = task_options[next_index]
+                else:
+                    user["current_task"] = task_options[user["difficulty"] - 1]
+            else:
+                user["current_task"] = get_next_task(user["current_task"], current_focus, user["difficulty"])
+    elif status == "miss":
+        user["consecutive_days"] = 0
+        user["missed_days_in_row"] = user.get("missed_days_in_row", 0) + 1
+        message = "You skipped today. Your streak has been reset."
+        # Make task easier if not already at easiest, or switch to another task in same tier
+        if user["difficulty"] > 1:
+            user["difficulty"] -= 1
+        task_options = habit_map.get(user["current_focus_area"], [])
+        if user["difficulty"] - 1 < len(task_options):
+            user["current_task"] = task_options[user["difficulty"] - 1]
+        else:
+            user["current_task"] = random.choice(task_options) if task_options else user["current_task"]
+    else:
+        user["consecutive_days"] = 0
+        user["missed_days_in_row"] = user.get("missed_days_in_row", 0) + 1
+
+    report_data = None
+    last_report_content = user.get("last_report_content")
+    # New logic: generate monthly report every 30 days
+    if user["days_elapsed"] % 30 == 0:
+        user["last_report_day"] = user["days_elapsed"]
+        report_data = {
+            "message": f"This past month, you tackled {user['current_focus_area']} and reached difficulty level {user['difficulty']}!",
+            "best_gapless_streak": user["best_gapless_streak"],
+            "motivation": f"You’ve completed {user['total_days_completed']} health improvement days! Keep it up!"
+        }
+        user["last_report_content"] = report_data
+    else:
+        report_data = last_report_content
+    focus_area = user.get("current_focus_area", "")
+    tips_by_focus_area = {
+        "Physical Health": ["Do 10 jumping jacks right now", "Stretch your shoulders while standing"],
+        "Nutrition": ["Add a fruit to one meal today", "Drink water before meals"],
+        "Sleep & Recovery": ["Turn off screens 30 minutes earlier", "Dim the lights after sunset"],
+        "Emotional Health": ["Take 5 slow breaths now", "Write one thing you're grateful for"],
+        "Social Connection": ["Text someone you haven’t talked to in a while", "Invite someone to a quick chat"],
+        "Habits": ["Use a reminder app today", "Visualize yourself succeeding tonight"],
+        "Medical History": ["Check your posture for 30 seconds", "Note any symptoms in your log"]
+    }
+    related_tips = tips_by_focus_area.get(focus_area, ["Do one thing today that aligns with your goals"])
+    daily_tip = random.choice(related_tips)
+
+    return jsonify({
+        "consecutive_days": user["consecutive_days"],
+        "current_task": user["current_task"],
+        "difficulty": user["difficulty"],
+        "current_focus_area": user["current_focus_area"],
+        "message": message,
+        "daily_tip": daily_tip,
+        "monthly_report": report_data,
+        "total_days_completed": user["total_days_completed"],
+        "best_gapless_streak": user["best_gapless_streak"],
+        "missed_days_in_row": user["missed_days_in_row"]
+    })
+
+@app.route('/monthly-report', methods=['POST'])
+def monthly_report():
+    data = request.json
+    user_id = data.get('user_id')
+
+    user = users.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.get("days_elapsed", 0) < 30:
+        return jsonify({"message": f"Monthly report not available yet. You’ve only logged {user.get('days_elapsed', 0)} days."})
+
+    best_gapless_streak = user.get("best_gapless_streak", 0)
+    total_days_completed = user.get("total_days_completed", 0)
+    current_focus = user["current_focus_area"]
+    current_task = user["current_task"]
+    difficulty = user["difficulty"]
+
+    return jsonify({
+        "message": f"This month, you tackled {current_focus} and reached difficulty level {difficulty}!",
+        "best_gapless_streak": best_gapless_streak,
+        "motivation": f"You’ve completed {total_days_completed} health improvement days! Your best streak without skipping is {best_gapless_streak} days. Keep it up!"
+    })
+
+@app.route('/daily-notification', methods=['POST'])
+def daily_notification():
+    data = request.json
+    user_id = data.get('user_id')
+
+    user = users.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    task = user["current_task"]
+    focus_area = user["current_focus_area"]
+
+    tips_by_focus_area = {
+        "Physical Health": ["Do 10 jumping jacks right now", "Stretch your shoulders while standing"],
+        "Nutrition": ["Add a fruit to one meal today", "Drink water before meals"],
+        "Sleep & Recovery": ["Turn off screens 30 minutes earlier", "Dim the lights after sunset"],
+        "Emotional Health": ["Take 5 slow breaths now", "Write one thing you're grateful for"],
+        "Social Connection": ["Text someone you haven’t talked to in a while", "Invite someone to a quick chat"],
+        "Habits": ["Use a reminder app today", "Visualize yourself succeeding tonight"],
+        "Medical History": ["Check your posture for 30 seconds", "Note any symptoms in your log"]
+    }
+
+    related_tips = tips_by_focus_area.get(focus_area, ["Do one thing today that aligns with your goals"])
+    tip = random.choice(related_tips)
+
+    return jsonify({
+        "reminder": f"Don't forget to complete your task today: {task}",
+        "extra_tip": f"Health Boost: {tip}"
+    })
+    
+    
+@app.route('/longevity-tip', methods=['POST'])
+def longevity_tip():
+    import time
+    data = request.json
+    activity = data.get('activity', 'your favorite activity')
+
+    prompt = (
+        f"Give longevity-focused insights for this sport: {activity}."
+        f"Go through 3-4 aspects of the activity (for instance, if the activity is tennis, aspects could beserving, backhand, etc.) For each sport specific the sport you choose, explain specifically how it can improve your health, as well as how that in turn specifically leads to longevity."
+        f"Use bullet point format (bullet points on separate lines) instead of full sentences, with no introduction or conclusion. make it readable and not too verbose. Don't bold anything. The goal is to motivate the reader to do more of this sport, by sharing some things they didn't already know, so make sure that it includes things/insights most people wouldn't already know."
+    )
+
+    try:
+        # Use the OpenAI Assistant API to get the tip
+        user_id = "default_user"
+        thread_id = thread_cache.get(user_id)
+
+        if not thread_id:
+            thread = client.beta.threads.create()
+            thread_id = thread.id
+            thread_cache[user_id] = thread_id
+
+        # Add a generic message with the custom prompt
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=prompt
+        )
+
+        # Run the assistant without changing the prompt
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=assistant_id
+        )
+
+        # Wait for completion
+        while True:
+            run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+            if run_status.status == "completed":
+                break
+            elif run_status.status == "failed":
+                raise Exception("Assistant run failed.")
+            time.sleep(0.5)
+
+        # Get the response
+        messages = client.beta.threads.messages.list(thread_id=thread_id)
+        tip = messages.data[0].content[0].text.value
+    except Exception as e:
+        tip = f"Keep enjoying {activity} — regular movement is one of the best ways to support long-term health!"
+
+    return jsonify({"tip": tip})
+    
+from openai import AssistantEventHandler
+
+# Global thread for demonstration (in production, use per-user threading)
+thread_id = None
+assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
+
+@app.route('/generate-line', methods=['POST'])
+def generate_line():
+    data = request.json
+    query = data.get("query", "").strip()
+    health_data = data.get("health_data", "").strip()
+    local_id = data.get("thread_id")  # rename so we don’t shadow
+
+    # 1) Use existing thread or create + initialize
+    global thread_id, assistant_id
+    if local_id:
+        thread_id = local_id
+        thread = client.beta.threads.retrieve(thread_id=thread_id)
+    else:
+        thread = client.beta.threads.create()
+        thread_id = thread.id
+    
+        # Send the health profile once
+        client.beta.threads.messages.create(
+            thread_id=thread_id, role="user",
+            content="this is the users health data (for reference, if helpful in answering questions): " + health_data
+        )
+
+    # 2) **Always** append the new user query
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content="the question: " + query
+    )
+
+    # 3) Run the assistant for every call
+    run = client.beta.threads.runs.create(
+        thread_id=thread_id,
+        assistant_id=assistant_id,
+        instructions=(
+            "You are HelloFam’s AI Trainer: a friendly, expert health coach. "
+            "Always remember prior user inputs and use past conversation context when answering. "
+            "When the user asks a generic system check question like 'does this work?', respond exactly: "
+            "'Yes, this works! How can I assist you today?' and do not include any health context. "
+            "For all other queries, focus your answers on the user's question and reference health data only when directly relevant. BE CONSISE IN YOUR ANSWER, no more 3 sentences."
+        )
+    )
+        
+
+    # 4) Poll until complete
+    while True:
+        status = client.beta.threads.runs.retrieve(run_id=run.id, thread_id=thread_id).status
+        if status == "completed":
+            break
+        time.sleep(0.5)
+
+    # 5) Gather and return the response + updated thread_id
+    messages = client.beta.threads.messages.list(thread_id=thread_id)
+    full_response = messages.data[0].content[0].text.value
+    return jsonify({"response": full_response, "thread_id": thread_id})
+    
+@app.route("/match", methods=["POST"])
+def match():
+    data = request.get_json()
+    activity = data.get("activity", "")
+    description = data.get("description", "")
+    user_input = f"{activity} {description}".strip()
+
+    print("User input:", user_input)
+
+    try:
+        top_matches = find_top_matches(user_input, top_k=40)
+        print("Top matches:", [m[0] for m in top_matches[:3]])
+
+        result = match_with_gpt(user_input, top_matches)
+        print("GPT picked:\n", result)
+
+        # Support multi-line GPT output
+        matches = [line.strip("-•123. ").strip() for line in result.split("\n") if line.strip()]
+        return jsonify({"matches": matches})
+
+    except Exception as e:
+        print("Error in /match:", str(e))
+        return jsonify({"error": str(e)}), 500
+        
+def match_with_gpt(user_input, top_activities):
+    activity_list = "\n".join(f"- {a}" for a, _ in top_activities)
+    prompt = f"""
+The user described this activity:
+
+\"{user_input}\"
+
+Now, from the list below, choose the **three best-matching activities** based on the content. 
+Do not be creative. Do not invent anything. Select only from the provided list.
+Only select "vigorous effort" if the user describes continuous intensity, racing, or pushing limits. Otherwise, default to "moderate effort."
+Be extremely precise.
+Here is the list of candidate activities:
+{activity_list}
+
+Return just three best matches from this list — nothing more.
+"""
+    response = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that maps user interests to activities."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message.content
+
+
+@app.route('/')
+def serve_index():
+    return send_from_directory(os.path.dirname(__file__), 'index.html')
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)

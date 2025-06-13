@@ -1,0 +1,66 @@
+body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    input { width: 60px; margin-left: 10px; }
+    button { margin-top: 10px; margin-right: 10px; }
+    .output {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background-color: #fdfdfd;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    .feedback-container {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .feedback {
+  flex: 1;
+  min-width: 180px;
+  max-width: 200px;
+  box-sizing: border-box;
+  border: 1px solid #aaa;
+  background-color: #eef;
+  padding: 10px;
+  white-space: pre-wrap;
+  height: 220px; /* prevents jumping */
+  overflow-y: auto;  /* allows scroll if too long */
+}
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 20px;
+    }
+    .form-grid label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    #queryInput {
+      width: 80%;
+      padding: 10px;
+      font-size: 16px;
+    }
+    #chatMessages div {
+      padding: 5px 10px;
+      border-radius: 4px;
+    }
+    #chatMessages div:nth-child(odd) {
+      background: #e6f7ff;
+    }
+    #chatMessages div:nth-child(even) {
+      background: #fff;
+    }
+button{
+    background-color: #CFF6EA
+}
+.special-button{
+    background-color: #fff
+}
