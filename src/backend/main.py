@@ -505,7 +505,7 @@ def generate_line():
     else:
         thread = client.beta.threads.create()
         thread_id = thread.id
-    
+        print(health_data)
         # Send the health profile once
         client.beta.threads.messages.create(
             thread_id=thread_id, role="user",

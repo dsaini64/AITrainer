@@ -20,7 +20,22 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Send scores to backend
+    const scores = {
+      "Age": sessionStorage.getItem("age") || "25",
+      "VO2 Max": sessionStorage.getItem("vo2") || "30",
+      "Preferred Activity": sessionStorage.getItem("activity") || "Running",
+      "Heart Rate": sessionStorage.getItem("heartrate") || "70",
+      "Sleep": sessionStorage.getItem("sleep") || "10",
+      "Weakest Area": sessionStorage.getItem("focus") || "Mobility",
+      "Physical Health": "5",
+      "Nutrition": "7",
+      "Sleep & Recovery": "8",
+      "Emotional Health": 9,
+        "Social Connection": "4",
+        "Habits": "3",
+         "Medical History": "10"
+
+    };
     const res = await fetch("http://localhost:5000/generate-plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

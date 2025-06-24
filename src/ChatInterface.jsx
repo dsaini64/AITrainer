@@ -1,6 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 export default function ChatInterface({ messages, setMessages, healthScores }) {
+  // Populate sessionStorage with defaults for both general and health-related scores
+  useEffect(() => {
+    sessionStorage.setItem("age", "25");
+    sessionStorage.setItem("vo2", "45");
+    sessionStorage.setItem("activity", "Running");
+    sessionStorage.setItem("heartrate", "60");
+    sessionStorage.setItem("sleep", "7");
+    sessionStorage.setItem("focus", "Mobility");
+
+    sessionStorage.setItem("Mobility", "60");
+    sessionStorage.setItem("Endurance", "50");
+    sessionStorage.setItem("Strength", "70");
+    sessionStorage.setItem("Nutrition", "55");
+    sessionStorage.setItem("Mindfulness", "40");
+    sessionStorage.setItem("Sleep", "65");
+  }, []);
+
   const [query, setQuery] = useState('');
   const [threadId, setThreadId] = useState(null);
   const [hiddenRecs, setHiddenRecs] = useState([]);
@@ -32,13 +49,28 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
     setQuery('');
 
     try {
+      // Build the scores object with all health-related scores from sessionStorage (all 12 fields)
+      const scores = {
+        "Age": sessionStorage.getItem("age") || "25",
+        "VO2 Max": sessionStorage.getItem("vo2") || "45",
+        "Preferred Activity": sessionStorage.getItem("activity") || "Running",
+        "Heart Rate": sessionStorage.getItem("heartrate") || "60",
+        "Sleep": sessionStorage.getItem("sleep") || "7",
+        "Weakest Area": sessionStorage.getItem("focus") || "Mobility",
+        "Mobility": sessionStorage.getItem("Mobility") || "60",
+        "Endurance": sessionStorage.getItem("Endurance") || "50",
+        "Strength": sessionStorage.getItem("Strength") || "70",
+        "Nutrition": sessionStorage.getItem("Nutrition") || "55",
+        "Mindfulness": sessionStorage.getItem("Mindfulness") || "40",
+        "Sleep Score": sessionStorage.getItem("Sleep") || "65"
+      };
+      // Convert the scores object to a string for health_data
+      const health_data = Object.entries(scores)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("\n");
       const payload = {
         query: message,
-        health_data: `Age: ${sessionStorage.getItem('age') || 'N/A'}
-VO2 Max: ${sessionStorage.getItem('vo2') || 'N/A'}
-Preferred activity: ${sessionStorage.getItem('activity') || 'N/A'}
-Heart Rate: ${sessionStorage.getItem('heartrate') || 'N/A'}
-Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/night' : 'N/A'}`,
+        health_data,
         thread_id: threadId
       };
 
@@ -109,6 +141,18 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
                   </div>
                 </div>
               ))}
+              {isLoading && (
+                <div className="message-row bot">
+                  <div className="message-bubble loading">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      Generating response...
+                      <span className="dot-typing">
+                        <span></span><span></span><span></span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
               {(() => {
                 const scores = categoryScores;
                 const weakestThree = Object.entries(scores)
@@ -129,7 +173,7 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
                       <div
                         key={i}
                         onClick={() => handlePreset(prompt)}
-                        className="recommendation-bubble"
+                        className="recommendation-button"
                       >
                         {prompt}
                       </div>
