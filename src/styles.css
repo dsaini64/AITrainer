@@ -160,3 +160,12 @@ button{
 .message-row.user .message-bubble {
   background-color: #CFF6EA;
 }
+
+.activity-tracker-box {
+ padding: "16px";
+ marginTop: "20px";
+ border: "1px solid #ccc"; 
+ borderRadius: "8px"; 
+ backgroundColor: "#fdfdfd";
+}
+

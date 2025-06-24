@@ -99,7 +99,7 @@ export default function FeedbackPanel({ recommendationData }) {
           <li>Physical Health: Take a brisk 20-minute walk</li>
         </ul>
       </div>
-      <div className="activity-tracker-box" style={{ padding: "16px", marginTop: "20px", border: "1px solid #ccc", borderRadius: "8px", backgroundColor: "#fdfdfd" }}>
+      <div className="activity-tracker-box">
         <h3>Activity Tracker:</h3>
         {consecutiveDays != null}
         {assignedTask && (
