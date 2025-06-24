@@ -2,7 +2,6 @@ HelloFam Trainer
 
 # AITrainer
 
-AITrainer is a full-stack health coaching app that uses AI to provide personalized habit recommendations.
 
 - **Frontend**: Vite + React  
 - **Backend**: Python Flask  
