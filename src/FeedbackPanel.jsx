@@ -86,10 +86,18 @@ export default function FeedbackPanel({ recommendationData }) {
     <>
       <div className="output">
         Your Focus Areas:
-        <ul>{recommendationData.focus_areas.map((a, i) => <li key={i}>{a}</li>)}</ul>
+        <ul>
+          <li>Habits</li>
+          <li>Social Connection</li>
+          <li>Physical Health</li>
+        </ul>
         <br />
         Recommended Habits:
-        <ul>{recommendationData.suggested_habits.map((h, i) => <li key={i}>{h}</li>)}</ul>
+        <ul>
+          <li>Habits: Practice mindfulness for 10 minutes</li>
+          <li>Social Connection: Reach out to a friend or family member for a chat</li>
+          <li>Physical Health: Take a brisk 20-minute walk</li>
+        </ul>
       </div>
       <div className="activity-tracker-box" style={{ padding: "16px", marginTop: "20px", border: "1px solid #ccc", borderRadius: "8px", backgroundColor: "#fdfdfd" }}>
         <h3>Activity Tracker:</h3>

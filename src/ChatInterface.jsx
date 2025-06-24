@@ -1,62 +1,93 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export default function ChatInterface({ messages, setMessages }) {
+export default function ChatInterface({ messages, setMessages, healthScores }) {
   const [query, setQuery] = useState('');
-  // threadId is initialized to null so each reload starts a new thread
   const [threadId, setThreadId] = useState(null);
+  const [hiddenRecs, setHiddenRecs] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const health = healthScores ?? JSON.parse(sessionStorage.getItem('healthScores') || '{}');
+
+  const categoryScores = {
+    "Physical Health": 5,
+    "Nutrition": 7,
+    "Sleep & Recovery": 8,
+    "Emotional Health": 9,
+    "Social Connection": 4,
+    "Habits": 3,
+    "Medical History": 10
+  };
 
   const chatContainerRef = useRef(null);
 
   const handleSend = async () => {
-  const message = query.trim();
-  if (!message) return;
+    setIsLoading(true);
+    const message = query.trim();
+    if (!message) {
+      setIsLoading(false);
+      return;
+    }
 
-  console.log("User input:", message);
-  setMessages(prev => [...prev, { role: 'user', text: message }]);
-  setQuery('');
+    setMessages(prev => [...prev, { role: 'user', text: message }]);
+    setQuery('');
 
-  try {
+    try {
+      const payload = {
+        query: message,
+        health_data: `Age: ${sessionStorage.getItem('age') || 'N/A'}
+VO2 Max: ${sessionStorage.getItem('vo2') || 'N/A'}
+Preferred activity: ${sessionStorage.getItem('activity') || 'N/A'}
+Heart Rate: ${sessionStorage.getItem('heartrate') || 'N/A'}
+Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/night' : 'N/A'}`,
+        thread_id: threadId
+      };
+
+      const response = await fetch('/generate-line', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (data.thread_id) setThreadId(data.thread_id);
+      setMessages(prev => [...prev, { role: 'bot', text: data.response.trim() || 'No valid response.' }]);
+      setIsLoading(false);
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'bot', text: 'Error contacting server.' }]);
+      setIsLoading(false);
+    }
+  };
+
+  const handlePreset = async (preset) => {
+    setIsLoading(true);
+    setHiddenRecs(prev => [...prev, preset]);
+    setMessages(prev => [...prev, { role: 'user', text: preset }]);
     const payload = {
-      query: message,
-      health_data: `Age: 32
-VO2 Max: 38
-Weakest area: posture
-Preferred activity: yoga
-Heart Rate: 70 bpm
-Sleep: 6h/night`,
+      query: preset,
+      health_data: `Age: ${sessionStorage.getItem('age') || 'N/A'}
+VO2 Max: ${sessionStorage.getItem('vo2') || 'N/A'}
+Preferred activity: ${sessionStorage.getItem('activity') || 'N/A'}
+Heart Rate: ${sessionStorage.getItem('heartrate') || 'N/A'}
+Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/night' : 'N/A'}`,
       thread_id: threadId
     };
-
-    console.log("Sending payload:", payload);
-
-    const response = await fetch('/generate-line', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+      const response = await fetch('/generate-line', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (data.thread_id) setThreadId(data.thread_id);
+      setMessages(prev => [...prev, { role: 'bot', text: data.response.trim() || 'No valid response.' }]);
+      setIsLoading(false);
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'bot', text: 'Error contacting server.' }]);
+      setIsLoading(false);
     }
-
-    const data = await response.json();
-    if (data.thread_id) {
-      setThreadId(data.thread_id);
-    }
-    console.log("Fresh backend response:", data.response);
-
-    if (data && typeof data.response === 'string' && data.response.trim() !== '') {
-      console.log("Setting new bot message:", data.response.trim());
-      setMessages(prev => [...prev, { role: 'bot', text: data.response.trim() }]);
-    } else {
-      console.warn("Empty or invalid response from backend:", data);
-      setMessages(prev => [...prev, { role: 'bot', text: 'No valid response received.' }]);
-    }
-  } catch (error) {
-    console.error("Error fetching response:", error);
-    setMessages(prev => [...prev, { role: 'bot', text: 'Error contacting server.' }]);
-  }
-};
+  };
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -66,31 +97,66 @@ Sleep: 6h/night`,
 
   return (
     <>
-      <h2 style={{ textAlign: 'center',  }}>Have questions? Ask the Health Chatbot!</h2>
-      <div style={{ width: '90%', maxWidth: '1000px', margin: '20px auto', border: '1px solid #ccc', borderRadius: '6px', padding: '15px', backgroundColor: '#f9f9f9', height: '500px', display: 'flex', flexDirection: 'column' }}>
-        <div id="chatMessages" ref={chatContainerRef} style={{ flex: 1, overflowY: 'auto', marginBottom: '10px' }}>
-          {messages.map((msg, i) => (
-            <div key={i} style={{
-              backgroundColor: msg.role === 'user' ? '#e6f7ff' : '#fff',
-              padding: '5px 10px',
-              borderRadius: '4px',
-              marginBottom: '5px'
-            }}>
-              {msg.text}
+      <h2 style={{ textAlign: 'center' }}>Have questions? Ask the Health Chatbot!</h2>
+      <div className="chat-layout">
+        <div className="chat-interface-container">
+          <div className="chat-area">
+            <div id="chatMessages" ref={chatContainerRef}>
+              {messages.map((msg, i) => (
+                <div key={i} className={`message-row ${msg.role}`}>
+                  <div className="message-bubble">
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {(() => {
+                const scores = categoryScores;
+                const weakestThree = Object.entries(scores)
+                  .sort((a, b) => a[1] - b[1])
+                  .slice(0, 3)
+                  .map(([area]) => area);
+                const templates = [
+                  (area) => `What creative ways can I weave improvements in ${area} into my daily routine?`,
+                  (area) => `Can you explain why ${area} matters for my long-term health and share a surprising tip?`,
+                  (area) => `What fun challenge could I try this week to boost my ${area}?`
+                ];
+                const remaining = weakestThree
+                  .map((area, i) => templates[i % templates.length](area))
+                  .filter(q => !hiddenRecs.includes(q));
+                return !isLoading && remaining.length > 0 ? (
+                  <div className="recommendations-container">
+                    {remaining.map((prompt, i) => (
+                      <div
+                        key={i}
+                        onClick={() => handlePreset(prompt)}
+                        className="recommendation-bubble"
+                      >
+                        {prompt}
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex' }}>
-          <input
-            id="queryInput"
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Ask something..."
-            style={{ flex: 1, padding: '10px', fontSize: '16px', marginRight: '10px' }}
-          />
-          <button style={{ backgroundColor: "#CFF6EA"}} onClick={handleSend}>Send</button>
-        </div>
+            <div className="chat-input-row">
+              <input
+                id="queryInput"
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Ask something..."
+                className="chat-input"
+              />
+              <button className="send-button" onClick={handleSend}>Send</button>
+            </div>
+          </div>  {/* end of chat-area */}
+        </div>  {/* end of chat-interface-container */}
       </div>
     </>
   );

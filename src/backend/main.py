@@ -99,8 +99,17 @@ def get_all_tasks():
 @app.route('/generate-plan', methods=['POST'])
 def generate_plan():
     data = request.json
-    scores = data.get('scores', {})
     user_id = data.get('user_id', 'testuser')
+    # Using hardcoded scores for now
+    scores = {
+        "Physical Health": 5,
+    "Nutrition": 7,
+    "Sleep & Recovery": 8,
+    "Emotional Health": 9,
+    "Social Connection": 4,
+    "Habits": 3,
+    "Medical History": 10
+    }
 
     # Map focus areas to possible habits
     habit_map = {

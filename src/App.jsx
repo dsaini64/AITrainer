@@ -6,6 +6,7 @@ import ChatInterface from "./ChatInterface";
 
 export default function App() {
   const [recommendationData, setRecommendationData] = useState(null);
+  const [healthScores, setHealthScores] = useState(null);
   const [activeTab, setActiveTab] = useState("summary");
   const [chatMessages, setChatMessages] = useState([]);
 
@@ -30,14 +31,14 @@ export default function App() {
           maxWidth: "100%",
           whiteSpace: "normal"
         }}>
-          HelloFam AI Trainer
+          HelloFam AI Personal Trainer
         </h1>
         <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginTop: "10px" }}>
           <button
             className={`special-button ${activeTab === "summary" ? "active" : ""}`}
             onClick={() => setActiveTab("summary")}
           >
-            Overview
+            Health Summary
           </button>
           <button
             className={`special-button ${activeTab === "longevity" ? "active" : ""}`}
@@ -63,14 +64,21 @@ export default function App() {
         minHeight: "150px"
       }}>
         <div style={{ display: activeTab === "summary" ? "block" : "none" }}>
-          <ScoreForm onRecommendation={setRecommendationData} />
+          <ScoreForm 
+            onRecommendation={setRecommendationData} 
+            onScoreSubmit={setHealthScores}
+          />
           <FeedbackPanel recommendationData={recommendationData} />
         </div>
         <div style={{ display: activeTab === "longevity" ? "block" : "none" }}>
           <LongevityTip />
         </div>
         <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
-          <ChatInterface messages={chatMessages} setMessages={setChatMessages} />
+          <ChatInterface 
+            messages={chatMessages} 
+            setMessages={setChatMessages} 
+            healthScores={healthScores}
+          />
         </div>
       </div>
     </div>

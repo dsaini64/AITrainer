@@ -37,30 +37,126 @@ body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 
       align-items: center;
     }
     .chat-container {
-      max-width: 800px;
+      max-width: 600px;
       margin: auto;
       background: white;
       padding: 20px;
       border-radius: 8px;
     }
     #queryInput {
-      width: 80%;
       padding: 10px;
       font-size: 16px;
     }
     #chatMessages div {
       padding: 5px 10px;
-      border-radius: 4px;
-    }
-    #chatMessages div:nth-child(odd) {
-      background: #e6f7ff;
-    }
-    #chatMessages div:nth-child(even) {
-      background: #fff;
     }
 button{
     background-color: #CFF6EA
 }
 .special-button{
     background-color: #fff
+}
+
+/* Chat Interface Styles */
+.chat-interface-container {
+  position: relative;
+  width: 90%;
+  max-width: 1000px;
+  max-height: 600px;    /* slightly increased height */
+  margin: 20px auto;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;    /* keeps sidebar aligned to top of chat */
+  overflow: visible;
+}
+.chat-area {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  height: 500px;      /* fixed height */
+  min-height: 0;    /* allow inner scrolling */
+}
+#chatMessages {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  min-height: 0;    /* enable overflow within flex */
+}
+.message-row {
+  display: flex;
+  margin-bottom: 5px;
+}
+.message-row.user {
+  justify-content: flex-end;
+}
+.message-row.bot {
+  justify-content: flex-start;
+}
+.message-bubble {
+  padding: 8px 12px;
+  border-radius: 16px;
+  max-width: 75%;
+  white-space: pre-wrap;
+  background-color: #F0FFFF;
+  border: 1px solid #ccc;
+  box-shadow: none;
+}
+.recommendations-container {
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.recommendation-bubble {
+  background-color: #e0ffe0;
+  padding: 8px 12px;
+  border-radius: 16px;
+  cursor: pointer;
+  max-width: 70%;
+  white-space: pre-wrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+.chat-input-row {
+  display: flex;
+  margin-top: auto;  /* stick this row at the bottom */
+}
+.chat-input {
+  flex: 4;      /* allocate four times as much space as the send button for more width */
+  padding: 10px;
+  font-size: 16px;
+  margin-right: 10px;
+}
+.send-button {
+  background-color: #CFF6EA;
+  flex: 0 0 auto;  /* keep the send button its natural width */
+}
+.sidebar {
+  position: absolute;
+  top: 15px;
+  right: -260px;    /* place it just outside the container */
+  width: 240px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.message-row.user .message-bubble {
+  margin-left: auto;   /* push bubble to the right edge */
+  margin-right: 0;     /* ensure no extra right margin */
+}
+
+.message-row.bot .message-bubble {
+  background-color: #F0FFFF;
+}
+
+.message-row.user .message-bubble {
+  background-color: #CFF6EA;
 }
