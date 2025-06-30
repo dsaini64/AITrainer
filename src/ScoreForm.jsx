@@ -14,23 +14,28 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
 
   const [userFacts, setUserFacts] = useState([]);
 
-  // Load stored facts from backend, and poll every 2 seconds for updates
-  useEffect(() => {
-    async function loadFacts() {
-      try {
-        const res = await fetch('http://localhost:5000/facts/testuser');
-        const data = await res.json();
-        setUserFacts(data);
-      } catch (err) {
-        console.error('Failed to load facts:', err);
-      }
+  // Function to load facts from backend
+  const loadFacts = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/facts/testuser');
+      const data = await res.json();
+      setUserFacts(data);
+    } catch (err) {
+      console.error('Failed to load facts:', err);
     }
+  };
+
+  useEffect(() => {
     loadFacts();
-    const interval = setInterval(loadFacts, 2000);
-    window.addEventListener('factAdded', loadFacts);
+  }, []);
+
+  useEffect(() => {
+    const handleFactsUpdated = () => {
+      loadFacts();
+    };
+    window.addEventListener('userFactsUpdated', handleFactsUpdated);
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('factAdded', loadFacts);
+      window.removeEventListener('userFactsUpdated', handleFactsUpdated);
     };
   }, []);
 

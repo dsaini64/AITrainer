@@ -5,6 +5,7 @@ from flask_cors import CORS
 import os
 import openai
 openai.api_key = os.getenv("OPENAI_API_KEY")
+import re
 from openai import OpenAI
 import time
 import random
@@ -17,6 +18,39 @@ CORS(app)
 # Hold the thread across sessions
 saved_thread = None
 thread_cache = {}
+
+@app.route('/prepare-thread', methods=['POST'])
+def prepare_thread():
+    data = request.get_json() or {}
+    user_id = data.get('user_id', 'testuser')
+    health_data = data.get('health_data', {})
+
+    # Create or reuse a conversation thread
+    if user_id in thread_cache:
+        thread_id = thread_cache[user_id]
+    else:
+        thread = client.beta.threads.create()
+        thread_id = thread.id
+        thread_cache[user_id] = thread_id
+
+    # Inject existing user facts if any
+    user_facts = facts_store.get(user_id, [])
+    if user_facts:
+        facts_summary = "\n".join(f"{fact['topic'].capitalize()}: {fact['fact']}" for fact in user_facts)
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content="Here are some things I know about you:\n" + facts_summary
+        )
+
+    # Inject health profile data
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content="User health data (for reference): " + json.dumps(health_data)
+    )
+
+    return jsonify({"thread_id": thread_id})
 
 @app.route('/api/new-daily-task', methods=['POST'])
 def new_daily_task():
@@ -569,10 +603,8 @@ def generate_line():
             "Always remember prior user inputs and use past conversation context when answering. "
             "When the user asks a generic system check question like 'does this work?', respond exactly: "
             "'Yes, this works! How can I assist you today?' and do not include any health context. "
-            "For all other queries, focus your answers on the user's question and reference health data only when directly relevant. BE CONSISE IN YOUR ANSWER, no more than 3 sentences, excluding the question portion. Then output a JSON object with exactly two keys: "
-                "\"main\" (your concise answer) and \"question\" (a follow-up question to the user). "
-                "Format it exactly as:\n"
-                "{\"main\": \"<your answer here>\", \"question\": \"<your follow-up question here>?\"}"
+            "For all other queries, focus your answers on the user's question and reference health data only when directly relevant, and providing a coaching follow-up question for the user. BE CONSISE IN YOUR ANSWER, no more than 3 sentences. Then output a JSON object with exactly two keys: "
+                "\"main\": \"<your answer here>\", \"question\": \"<your question here>?\""
         )
     )
 
@@ -587,20 +619,86 @@ def generate_line():
     # 5) Gather and return the response + updated thread_id
     messages = client.beta.threads.messages.list(thread_id=thread_id)
     full_response = messages.data[0].content[0].text.value
+    
+    # Attempt to extract a JSON object, either fenced or inline
+    json_str = None
+    # 1) Check for fenced JSON block
+    fence_match = re.search(r'```(?:json)?\s*({[\s\S]*?})\s*```', full_response)
+    if fence_match:
+        json_str = fence_match.group(1)
+    else:
+        # 2) If no fences, look for the first balanced JSON object
+        try:
+            start = full_response.index('{')
+            end = full_response.rfind('}') + 1
+            json_str = full_response[start:end]
+        except ValueError:
+            json_str = None
 
-   # Extract JSON payload from assistant’s reply and set full narrative as main
-    try:
-        json_start = full_response.index('{')
-        json_str = full_response[json_start:]
-        json_payload = json.loads(json_str)
-        # Use the full narrative (all text before JSON) as the main answer
-        narrative = full_response[:json_start].strip()
-        json_payload["main"] = narrative
-        json_payload["thread_id"] = thread_id
-        return jsonify(json_payload)
-    except (ValueError, json.JSONDecodeError):
-        # Fallback: return full response as main with empty question
-        return jsonify({"thread_id": thread_id, "main": full_response.strip(), "question": ""})
+    if json_str:
+        try:
+            payload = json.loads(json_str)
+            # Narrative is everything before the JSON snippet
+            narrative = full_response[: full_response.find(json_str)].strip()
+            # Use narrative as 'main', override if payload provides main
+            payload["main"] = payload.get("main", narrative)
+            payload["question"] = payload.get("question", "").strip()
+            payload["thread_id"] = thread_id
+            return jsonify(payload)
+        except json.JSONDecodeError:
+            pass
+
+    # 3) Fallback: split off a trailing question
+    text = full_response.strip()
+    m = re.search(r'([^\n?]+\?)\s*$', text)
+    if m:
+        question = m.group(1).strip()
+        main_text = text[:m.start()].strip()
+    else:
+        main_text = text
+        question = ""
+    return jsonify({
+        "thread_id": thread_id,
+        "main": main_text,
+        "question": question
+    })
+        
+#@app.route('/generate-line', methods=['POST'])
+#def generate_line():
+#    data = request.get_json() or {}
+#    user_id = data.get('user_id', 'testuser')
+#    query = data.get('query', '').strip()
+#    # Build messages list
+#    messages = [
+#        {"role": "system", "content": "You are HelloFam’s AI Trainer: a friendly, expert health coach. Be concise (max 3 sentences) and reference the user’s personal health data and previously shared facts when relevant."}
+#    ]
+#    # Inject stored facts if any
+#    user_facts = facts_store.get(user_id, [])
+#    if user_facts:
+#        facts_summary = "\n".join(f"{fact['topic'].capitalize()}: {fact['fact']}" for fact in user_facts)
+#        messages.append({"role": "system", "content": f"User facts:\n{facts_summary}"})
+#    # Inject health profile
+#    health_data = data.get('health_data', '')
+#    if health_data:
+#        messages.append({"role": "system", "content": f"User health data:\n{health_data}"})
+#    # Add the user query
+#    messages.append({"role": "user", "content": query})
+#
+#    # Single ChatCompletion call
+#    response = openai.chat.completions.create(
+#        model="gpt-4",
+#        messages=messages,
+#        temperature=0.2
+#    )
+#    content = response.choices[0].message.content.strip()
+#    # Try parsing JSON payload if provided in answer
+#    try:
+#        # Expect assistant to return JSON with keys "main" and "question"
+#        payload = json.loads(content)
+#    except json.JSONDecodeError:
+#        # Fallback: wrap entire content as "main", empty question
+#        payload = {"main": content, "question": ""}
+#    return jsonify(payload)
 
 @app.route("/match", methods=["POST"])
 def match():

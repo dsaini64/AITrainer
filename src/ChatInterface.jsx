@@ -23,6 +23,46 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
   const [hiddenRecs, setHiddenRecs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [userFacts, setUserFacts] = useState([]);
+
+  // Pre-warm the conversation thread on component mount
+  useEffect(() => {
+    const scores = {
+      "Age": sessionStorage.getItem("age") || "25",
+      "VO2 Max": sessionStorage.getItem("vo2") || "45",
+      "Preferred Activity": sessionStorage.getItem("activity") || "Running",
+      "Heart Rate": sessionStorage.getItem("heartrate") || "60",
+      "Sleep": sessionStorage.getItem("sleep") || "7",
+      "Weakest Area": sessionStorage.getItem("focus") || "Mobility",
+      "Mobility": sessionStorage.getItem("Mobility") || "60",
+      "Endurance": sessionStorage.getItem("Endurance") || "50",
+      "Strength": sessionStorage.getItem("Strength") || "70",
+      "Nutrition": sessionStorage.getItem("Nutrition") || "55",
+      "Mindfulness": sessionStorage.getItem("Mindfulness") || "40",
+      "Sleep Score": sessionStorage.getItem("Sleep") || "65"
+    };
+    fetch('http://localhost:5000/prepare-thread', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: 'testuser', health_data: scores })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.thread_id) {
+          setThreadId(data.thread_id);
+        }
+      })
+      .catch(err => console.error('Failed to prepare thread:', err));
+  }, []);
+
+  // Load user facts into ChatInterface for display
+  useEffect(() => {
+    fetch('http://localhost:5000/facts/testuser')
+      .then(res => res.json())
+      .then(data => setUserFacts(data))
+      .catch(err => console.error('Failed to load user facts:', err));
+  }, []);
+
   const health = healthScores ?? JSON.parse(sessionStorage.getItem('healthScores') || '{}');
 
   const categoryScores = {
@@ -91,7 +131,7 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
 
           // Persist or update this fact and notify the UI
           await addFact(newFact);
-          window.dispatchEvent(new Event('factAdded'));
+          window.dispatchEvent(new Event('userFactsUpdated'));
         }
       } catch (err) {
         console.error("Error extracting fact:", err);
@@ -129,17 +169,19 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
       });
 
       const data = await response.json();
+      console.log('generate-line response data:', data);
       if (data.thread_id) setThreadId(data.thread_id);
       // Display the main answer
       if (data.main) {
         setMessages(prev => [...prev, { role: 'bot', text: data.main }]);
       }
       // Display the follow-up question in its own bubble, ensuring it ends with a question mark
-      if (data.question) {
-        let questionText = data.question.trim();
-        if (!questionText.endsWith('?')) {
+      if (Object.prototype.hasOwnProperty.call(data, 'question')) {
+        let questionText = (data.question || '').trim();
+        if (questionText && !questionText.endsWith('?')) {
           questionText += '?';
         }
+        // Add even if empty to force two bubbles when key exists
         setMessages(prev => [...prev, { role: 'bot', text: questionText }]);
       }
 
@@ -183,6 +225,7 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
         if (!questionText.endsWith('?')) questionText += '?';
         setMessages(prev => [...prev, { role: 'bot', text: questionText }]);
       }
+  
       setIsLoading(false);
     } catch (err) {
       console.error(err);
@@ -202,6 +245,12 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
       <h2 style={{ textAlign: 'center' }}>Have questions? Ask the Health Chatbot!</h2>
       <div className="chat-layout">
         <div className="chat-interface-container">
+          {/* Preparing chat indicator */}
+          {!threadId && (
+            <div style={{ textAlign: 'center', padding: '10px', fontStyle: 'italic', color: '#888' }}>
+              Preparing chat...
+            </div>
+          )}
           <div className="chat-area">
             <div id="chatMessages" ref={chatContainerRef}>
               {messages.map((msg, i) => (
@@ -267,8 +316,15 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
                 }}
                 placeholder="Ask something..."
                 className="chat-input"
+                disabled={!threadId || isLoading}
               />
-              <button className="send-button" onClick={handleSend}>Send</button>
+              <button
+                className="send-button"
+                onClick={handleSend}
+                disabled={!threadId || isLoading}
+              >
+                Send
+              </button>
             </div>
           </div>  {/* end of chat-area */}
         </div>  {/* end of chat-interface-container */}
