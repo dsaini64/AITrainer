@@ -49,6 +49,32 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
     setQuery('');
 
     try {
+      try {
+        const factRes = await fetch("http://localhost:5000/extract-fact", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message,
+            context: JSON.parse(sessionStorage.getItem("userFacts") || "{}"),
+          }),
+        });
+
+        const factData = await factRes.json();
+        if (factData && factData.fact) {
+          const newFact = typeof factData.fact === "string"
+            ? JSON.parse(factData.fact)
+            : factData.fact;
+
+          const existingFacts = JSON.parse(sessionStorage.getItem("userFacts") || "{}");
+          existingFacts[newFact.topic] = newFact;
+          sessionStorage.setItem("userFacts", JSON.stringify(existingFacts));
+        }
+      } catch (err) {
+        console.error("Error extracting fact:", err);
+      }
+
       // Build the scores object with all health-related scores from sessionStorage (all 12 fields)
       const scores = {
         "Age": sessionStorage.getItem("age") || "25",
@@ -83,6 +109,8 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
       const data = await response.json();
       if (data.thread_id) setThreadId(data.thread_id);
       setMessages(prev => [...prev, { role: 'bot', text: data.response.trim() || 'No valid response.' }]);
+
+
       setIsLoading(false);
     } catch (err) {
       console.error(err);
@@ -113,6 +141,8 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
       const data = await response.json();
       if (data.thread_id) setThreadId(data.thread_id);
       setMessages(prev => [...prev, { role: 'bot', text: data.response.trim() || 'No valid response.' }]);
+
+
       setIsLoading(false);
     } catch (err) {
       console.error(err);
@@ -141,6 +171,35 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
                   </div>
                 </div>
               ))}
+              {/* Suggested questions rendering block */}
+              {!isLoading && (() => {
+                const scoresObj = categoryScores;
+                const weakestThree = Object.entries(scoresObj)
+                  .sort((a, b) => a[1] - b[1])
+                  .slice(0, 3)
+                  .map(([area]) => area);
+                const templates = [
+                  (area) => `What creative ways can I weave improvements in ${area} into my daily routine?`,
+                  (area) => `Can you explain why ${area} matters for my long-term health and share a surprising tip?`,
+                  (area) => `What fun challenge could I try this week to boost my ${area}?`
+                ];
+                const remaining = weakestThree
+                  .map((area, i) => templates[i % templates.length](area))
+                  .filter(q => !hiddenRecs.includes(q));
+                return remaining.length > 0 ? (
+                  <div className="recommendations-container">
+                    {remaining.map((prompt, i) => (
+                      <div
+                        key={i}
+                        className="recommendation-button"
+                        onClick={() => handlePreset(prompt)}
+                      >
+                        {prompt}
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
               {isLoading && (
                 <div className="message-row bot">
                   <div className="message-bubble loading">
@@ -153,34 +212,6 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
                   </div>
                 </div>
               )}
-              {(() => {
-                const scores = categoryScores;
-                const weakestThree = Object.entries(scores)
-                  .sort((a, b) => a[1] - b[1])
-                  .slice(0, 3)
-                  .map(([area]) => area);
-                const templates = [
-                  (area) => `What creative ways can I weave improvements in ${area} into my daily routine?`,
-                  (area) => `Can you explain why ${area} matters for my long-term health and share a surprising tip?`,
-                  (area) => `What fun challenge could I try this week to boost my ${area}?`
-                ];
-                const remaining = weakestThree
-                  .map((area, i) => templates[i % templates.length](area))
-                  .filter(q => !hiddenRecs.includes(q));
-                return !isLoading && remaining.length > 0 ? (
-                  <div className="recommendations-container">
-                    {remaining.map((prompt, i) => (
-                      <div
-                        key={i}
-                        onClick={() => handlePreset(prompt)}
-                        className="recommendation-button"
-                      >
-                        {prompt}
-                      </div>
-                    ))}
-                  </div>
-                ) : null;
-              })()}
             </div>
             <div className="chat-input-row">
               <input

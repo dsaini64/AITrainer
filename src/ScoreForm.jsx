@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
   const numericFields = ["Age", "VO2 Max", "Heart Rate", "Sleep"];
@@ -12,6 +12,18 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
     "Sleep": 7,
   });
 
+  const [userFacts, setUserFacts] = useState(
+    JSON.parse(sessionStorage.getItem('userFacts') || '{}')
+  );
+
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUserFacts(JSON.parse(sessionStorage.getItem('userFacts') || '{}'));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     const parsedValue = numericFields.includes(name) ? Number(value) : value;
@@ -20,37 +32,36 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const scores = {
-      "Age": sessionStorage.getItem("age") || "25",
-      "VO2 Max": sessionStorage.getItem("vo2") || "30",
-      "Preferred Activity": sessionStorage.getItem("activity") || "Running",
-      "Heart Rate": sessionStorage.getItem("heartrate") || "70",
-      "Sleep": sessionStorage.getItem("sleep") || "10",
-      "Weakest Area": sessionStorage.getItem("focus") || "Mobility",
+    const mergedScores = {
+      "Age": sessionStorage.getItem("age") || scores["Age"],
+      "VO2 Max": sessionStorage.getItem("vo2") || scores["VO2 Max"],
+      "Preferred Activity": sessionStorage.getItem("activity") || scores["Preferred Activity"],
+      "Heart Rate": sessionStorage.getItem("heartrate") || scores["Heart Rate"],
+      "Sleep": sessionStorage.getItem("sleep") || scores["Sleep"],
+      "Weakest Area": sessionStorage.getItem("focus") || scores["Weakest Area"],
       "Physical Health": "5",
       "Nutrition": "7",
       "Sleep & Recovery": "8",
       "Emotional Health": 9,
-        "Social Connection": "4",
-        "Habits": "3",
-         "Medical History": "10"
-
+      "Social Connection": "4",
+      "Habits": "3",
+      "Medical History": "10"
     };
     const res = await fetch("http://localhost:5000/generate-plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: "testuser", scores }),
+      body: JSON.stringify({ user_id: "testuser", scores: mergedScores }),
     });
     const data = await res.json();
     onRecommendation(data);              // update recommendations
-    onScoreSubmit(scores);               // lift up raw scores
-    sessionStorage.setItem('healthScores', JSON.stringify(scores));
-    sessionStorage.setItem('age', scores["Age"]);
-    sessionStorage.setItem('vo2', scores["VO2 Max"]);
-    sessionStorage.setItem('weakness', scores["Weakest Area"]);
-    sessionStorage.setItem('activity', scores["Preferred Activity"]);
-    sessionStorage.setItem('heartrate', scores["Heart Rate"]);
-    sessionStorage.setItem('sleep', scores["Sleep"]);
+    onScoreSubmit(mergedScores);         // lift up raw scores
+    sessionStorage.setItem('healthScores', JSON.stringify(mergedScores));
+    sessionStorage.setItem('age', mergedScores["Age"]);
+    sessionStorage.setItem('vo2', mergedScores["VO2 Max"]);
+    sessionStorage.setItem('weakness', mergedScores["Weakest Area"]);
+    sessionStorage.setItem('activity', mergedScores["Preferred Activity"]);
+    sessionStorage.setItem('heartrate', mergedScores["Heart Rate"]);
+    sessionStorage.setItem('sleep', mergedScores["Sleep"]);
   };
 
   const handleClear = () => {
@@ -66,6 +77,14 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
     sessionStorage.removeItem('sleep');
   };
 
+  // Handler to delete individual facts
+  const handleDeleteFact = (topic) => {
+    const updatedFacts = { ...userFacts };
+    delete updatedFacts[topic];
+    sessionStorage.setItem('userFacts', JSON.stringify(updatedFacts));
+    setUserFacts(updatedFacts);
+  };
+
   return (
     <div style={{ display: 'flex', position: 'relative', justifyContent: 'center', alignItems: 'flex-start' }}>
       <form onSubmit={handleSubmit} style={{ maxWidth: 600, margin: "20px", width: "100%", boxSizing: "border-box" }}>
@@ -76,9 +95,9 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
           marginTop: '20px',
           width: '100%',
           boxSizing: 'border-box',
-          minHeight: '250px',
-          maxHeight: '250px',
-          overflow: 'hidden'
+          // minHeight: '250px', // remove fixed height limits so the panel can grow
+          // maxHeight: '250px',
+          overflowY: 'auto'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px' }}>
             <div style={{ flex: 1, flexShrink: 0 }}>
@@ -90,6 +109,30 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
                 <li>Heart Rate: {sessionStorage.getItem('heartrate') || scores["Heart Rate"]}</li>
                 <li>Sleep: {(sessionStorage.getItem('sleep') || scores["Sleep"]) + 'h/night'}</li>
               </ul>
+              {Object.keys(userFacts).length > 0 && (
+                <div style={{ marginTop: "40px" }}>
+                  <strong>What the AI Trainer knows about you:</strong>
+                  <ul style={{ listStyle: 'none', padding: 0 }}>
+                    {Object.entries(userFacts).map(([key, value]) => (
+                      <li
+                        key={key}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      >
+                        <span>
+                          {key.charAt(0).toUpperCase() + key.slice(1)}: {value.fact}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFact(key)}
+                          style={{ marginLeft: '8px' }}
+                        >
+                          Delete
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             <div style={{ flex: 1, flexShrink: 0 }}>
               <strong>Your Health Scores:</strong>
@@ -106,8 +149,12 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
           </div>
         </div>
         <div style={{ marginTop: "15px" }}>
-          <button type="submit" style={{ marginRight: "10px" }}>Get My Recommendations</button>
-          <button type="button" onClick={handleClear}>Clear</button>
+          {!sessionStorage.getItem("healthScores") && (
+            <button type="submit" style={{ marginRight: "10px" }}>Get My Recommendations</button>
+          )}
+          {sessionStorage.getItem("healthScores") && (
+            <button type="button" onClick={handleClear}>Clear</button>
+          )}
         </div>
       </form>
     </div>

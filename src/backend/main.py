@@ -1,14 +1,15 @@
-
+import json
 from flask import Flask, request, jsonify, send_from_directory
-app = Flask(__name__)
-import os
-import re
-import random
-from datetime import datetime
-from openai import OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 from flask_cors import CORS
+
+import os
+import openai
+openai.api_key = os.getenv("OPENAI_API_KEY")
+from openai import OpenAI
 import time
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+app = Flask(__name__)
+CORS(app)
 CORS(app)
 
 # Hold the thread across sessions
@@ -430,8 +431,8 @@ def daily_notification():
         "reminder": f"Don't forget to complete your task today: {task}",
         "extra_tip": f"Health Boost: {tip}"
     })
-    
-    
+
+
 @app.route('/longevity-tip', methods=['POST'])
 def longevity_tip():
     import time
@@ -483,7 +484,7 @@ def longevity_tip():
         tip = f"Keep enjoying {activity} — regular movement is one of the best ways to support long-term health!"
 
     return jsonify({"tip": tip})
-    
+
 from openai import AssistantEventHandler
 
 # Global thread for demonstration (in production, use per-user threading)
@@ -528,10 +529,10 @@ def generate_line():
             "Always remember prior user inputs and use past conversation context when answering. "
             "When the user asks a generic system check question like 'does this work?', respond exactly: "
             "'Yes, this works! How can I assist you today?' and do not include any health context. "
-            "For all other queries, focus your answers on the user's question and reference health data only when directly relevant. BE CONSISE IN YOUR ANSWER, no more 3 sentences."
+            "For all other queries, focus your answers on the user's question and reference health data only when directly relevant. BE CONSISE IN YOUR ANSWER, no more 3 sentences. End your response with a question to the user asking them how exactly they might incorporate your answer content into their own daily life."
         )
     )
-        
+
 
     # 4) Poll until complete
     while True:
@@ -544,7 +545,7 @@ def generate_line():
     messages = client.beta.threads.messages.list(thread_id=thread_id)
     full_response = messages.data[0].content[0].text.value
     return jsonify({"response": full_response, "thread_id": thread_id})
-    
+
 @app.route("/match", methods=["POST"])
 def match():
     data = request.get_json()
@@ -568,7 +569,7 @@ def match():
     except Exception as e:
         print("Error in /match:", str(e))
         return jsonify({"error": str(e)}), 500
-        
+
 def match_with_gpt(user_input, top_activities):
     activity_list = "\n".join(f"- {a}" for a, _ in top_activities)
     prompt = f"""
@@ -599,5 +600,50 @@ Return just three best matches from this list — nothing more.
 def serve_index():
     return send_from_directory(os.path.dirname(__file__), 'index.html')
 
+@app.route('/extract-fact', methods=['POST', 'OPTIONS'])
+def extract_fact():
+    if request.method == 'OPTIONS':
+      return jsonify({"fact": None})
+      
+    print("HIT /extract-fact")
+    data = request.get_json()
+    message = data.get("message", "")
+    context = data.get("context", {})
+
+    system_prompt = """
+You are an internal health assistant tasked with extracting *personal lifestyle facts* from what the user just said. Only return a JSON object like this if there is a clear new fact:
+
+{
+  "topic": "diet",
+  "fact": "User eats takeout every day at work",
+  "value": "takeout daily",
+  "confidence": 0.95
+}
+
+If there is no new personal fact, just return: null
+"""
+
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Message: {message}\\nMemory: {json.dumps(context)}"}
+        ],
+        temperature=0.2
+    )
+
+    result = response.choices[0].message.content.strip()
+    print("FACT RESPONSE FROM OPENAI:")
+    print(result)
+
+    try:
+        parsed = json.loads(result)
+        return jsonify({"fact": parsed})
+    except json.JSONDecodeError:
+        return jsonify({"fact": None})
+
+print("Registered routes:")
+print(app.url_map)
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
