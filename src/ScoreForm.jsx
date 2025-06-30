@@ -12,17 +12,28 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
     "Sleep": 7,
   });
 
-  const [userFacts, setUserFacts] = useState(
-    JSON.parse(sessionStorage.getItem('userFacts') || '{}')
-  );
+  const [userFacts, setUserFacts] = useState([]);
 
-
+  // Load stored facts from backend, and poll every 2 seconds for updates
   useEffect(() => {
-    const interval = setInterval(() => {
-      setUserFacts(JSON.parse(sessionStorage.getItem('userFacts') || '{}'));
-    }, 1000);
-    return () => clearInterval(interval);
+    async function loadFacts() {
+      try {
+        const res = await fetch('http://localhost:5000/facts/testuser');
+        const data = await res.json();
+        setUserFacts(data);
+      } catch (err) {
+        console.error('Failed to load facts:', err);
+      }
+    }
+    loadFacts();
+    const interval = setInterval(loadFacts, 2000);
+    window.addEventListener('factAdded', loadFacts);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('factAdded', loadFacts);
+    };
   }, []);
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -77,12 +88,18 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
     sessionStorage.removeItem('sleep');
   };
 
-  // Handler to delete individual facts
-  const handleDeleteFact = (topic) => {
-    const updatedFacts = { ...userFacts };
-    delete updatedFacts[topic];
-    sessionStorage.setItem('userFacts', JSON.stringify(updatedFacts));
-    setUserFacts(updatedFacts);
+  // Helper to add a fact (calls backend)
+  const addFact = async (fact) => {
+    try {
+      await fetch('http://localhost:5000/facts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: 'testuser', fact }),
+      });
+      setUserFacts((prev) => ([...prev, fact]));
+    } catch (err) {
+      console.error('Failed to save fact:', err);
+    }
   };
 
   return (
@@ -109,25 +126,15 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
                 <li>Heart Rate: {sessionStorage.getItem('heartrate') || scores["Heart Rate"]}</li>
                 <li>Sleep: {(sessionStorage.getItem('sleep') || scores["Sleep"]) + 'h/night'}</li>
               </ul>
-              {Object.keys(userFacts).length > 0 && (
+              {userFacts.length > 0 && (
                 <div style={{ marginTop: "40px" }}>
                   <strong>What the AI Trainer knows about you:</strong>
                   <ul style={{ listStyle: 'none', padding: 0 }}>
-                    {Object.entries(userFacts).map(([key, value]) => (
-                      <li
-                        key={key}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                      >
+                    {userFacts.map((fact, index) => (
+                      <li key={index} style={{ display: 'flex', alignItems: 'center' }}>
                         <span>
-                          {key.charAt(0).toUpperCase() + key.slice(1)}: {value.fact}
+                          {fact.topic.charAt(0).toUpperCase() + fact.topic.slice(1)}: {fact.fact}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteFact(key)}
-                          style={{ marginLeft: '8px' }}
-                        >
-                          Delete
-                        </button>
                       </li>
                     ))}
                   </ul>

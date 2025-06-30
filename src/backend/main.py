@@ -7,6 +7,8 @@ import openai
 openai.api_key = os.getenv("OPENAI_API_KEY")
 from openai import OpenAI
 import time
+import random
+from datetime import datetime
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 app = Flask(__name__)
 CORS(app)
@@ -72,6 +74,32 @@ for user_data in users.values():
     user_data["missed_days_in_row"] = 0
     user_data["last_report_day"] = None
     user_data["last_report_content"] = None
+    
+# In-memory store for extracted facts per user
+facts_store = {}
+
+@app.route('/facts/<user_id>', methods=['GET'])
+def get_facts(user_id):
+    return jsonify(facts_store.get(user_id, []))
+
+@app.route('/facts', methods=['POST'])
+def add_fact():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    fact = data.get('fact')
+    if not user_id or not fact or 'topic' not in fact:
+        return jsonify({"error": "Must provide user_id and fact with topic"}), 400
+    facts_store.setdefault(user_id, [])
+    facts_store[user_id].append(fact)
+    return jsonify({"success": True})
+
+@app.route('/facts/<user_id>/<topic>', methods=['DELETE'])
+def delete_fact(user_id, topic):
+    user_facts = facts_store.get(user_id, [])
+    # Filter out any facts whose 'topic' matches the one to delete
+    updated = [fact for fact in user_facts if fact.get('topic') != topic]
+    facts_store[user_id] = updated
+    return jsonify({"success": True})
 
 habit_progressions = {
     "Stretch every morning": [
@@ -497,6 +525,7 @@ def generate_line():
     query = data.get("query", "").strip()
     health_data = data.get("health_data", "").strip()
     local_id = data.get("thread_id")  # rename so we don’t shadow
+    user_id = data.get("user_id", "testuser")
 
     # 1) Use existing thread or create + initialize
     global thread_id, assistant_id
@@ -506,6 +535,17 @@ def generate_line():
     else:
         thread = client.beta.threads.create()
         thread_id = thread.id
+        # Inject existing user facts into the new thread
+        user_facts = facts_store.get(user_id, [])
+        if user_facts:
+            facts_summary = "\n".join(
+                f"{fact['topic'].capitalize()}: {fact['fact']}"
+                for fact in user_facts
+            )
+            client.beta.threads.messages.create(
+                thread_id=thread_id, role="user",
+                content="Here are some things I know about you:\n" + facts_summary
+            )
         print(health_data)
         # Send the health profile once
         client.beta.threads.messages.create(
@@ -570,6 +610,7 @@ def match():
         print("Error in /match:", str(e))
         return jsonify({"error": str(e)}), 500
 
+# not using this currently
 def match_with_gpt(user_input, top_activities):
     activity_list = "\n".join(f"- {a}" for a, _ in top_activities)
     prompt = f"""
@@ -600,11 +641,11 @@ Return just three best matches from this list — nothing more.
 def serve_index():
     return send_from_directory(os.path.dirname(__file__), 'index.html')
 
+
 @app.route('/extract-fact', methods=['POST', 'OPTIONS'])
 def extract_fact():
     if request.method == 'OPTIONS':
-      return jsonify({"fact": None})
-      
+        return jsonify({"fact": None})
     print("HIT /extract-fact")
     data = request.get_json()
     message = data.get("message", "")
@@ -641,6 +682,17 @@ If there is no new personal fact, just return: null
         return jsonify({"fact": parsed})
     except json.JSONDecodeError:
         return jsonify({"fact": None})
+        
+        
+@app.route('/reset-thread/<user_id>', methods=['POST'])
+def reset_thread(user_id):
+    # Remove any stored thread for this user so the next chat starts fresh
+    thread_cache.pop(user_id, None)
+    return jsonify({"success": True})
+
+
+        
+
 
 print("Registered routes:")
 print(app.url_map)

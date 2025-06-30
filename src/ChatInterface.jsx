@@ -37,6 +37,19 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
 
   const chatContainerRef = useRef(null);
 
+  // Helper to persist a new fact to backend store
+  const addFact = async (fact) => {
+    try {
+      await fetch('http://localhost:5000/facts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: 'testuser', fact }),
+      });
+    } catch (err) {
+      console.error('Failed to save fact:', err);
+    }
+  };
+
   const handleSend = async () => {
     setIsLoading(true);
     const message = query.trim();
@@ -48,6 +61,15 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
     setMessages(prev => [...prev, { role: 'user', text: message }]);
     setQuery('');
 
+    // Load current facts to use as context for extraction
+    let contextFacts = {};
+    try {
+      const ctxRes = await fetch('http://localhost:5000/facts/testuser');
+      contextFacts = await ctxRes.json();
+    } catch (err) {
+      console.error('Failed to load context facts:', err);
+    }
+
     try {
       try {
         const factRes = await fetch("http://localhost:5000/extract-fact", {
@@ -57,7 +79,7 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
           },
           body: JSON.stringify({
             message,
-            context: JSON.parse(sessionStorage.getItem("userFacts") || "{}"),
+            context: contextFacts,
           }),
         });
 
@@ -67,9 +89,9 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
             ? JSON.parse(factData.fact)
             : factData.fact;
 
-          const existingFacts = JSON.parse(sessionStorage.getItem("userFacts") || "{}");
-          existingFacts[newFact.topic] = newFact;
-          sessionStorage.setItem("userFacts", JSON.stringify(existingFacts));
+          // Persist or update this fact and notify the UI
+          await addFact(newFact);
+          window.dispatchEvent(new Event('factAdded'));
         }
       } catch (err) {
         console.error("Error extracting fact:", err);
