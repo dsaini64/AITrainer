@@ -3,16 +3,24 @@ import React, { useState } from "react";
 export default function LongevityTip() {
   const [activity, setActivity] = useState("");
   const [tip, setTip] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const fetchTip = async () => {
     if (!activity.trim()) return;
-    const res = await fetch("/longevity-tip", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activity })
-    });
-    const result = await res.json();
-    setTip(result.tip);
+    setIsLoading(true);
+    try {
+      const res = await fetch("/longevity-tip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activity })
+      });
+      const result = await res.json();
+      setTip(result.tip);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -34,6 +42,14 @@ export default function LongevityTip() {
           style={{ width: "100%", padding: "10px", margin: "12px 0", boxSizing: "border-box" }}
         />
         <button onClick={fetchTip} style={{ marginBottom: "10px", backgroundColor: "#CFF6EA"}}>Send</button>
+        {isLoading && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+            Generating insight...
+            <span className="dot-typing">
+              <span></span><span></span><span></span>
+            </span>
+          </div>
+        )}
         {tip && (
           <div className="output">
             <p style={{ whiteSpace: 'pre-wrap' }}>{tip}</p>

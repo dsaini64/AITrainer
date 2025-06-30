@@ -569,7 +569,10 @@ def generate_line():
             "Always remember prior user inputs and use past conversation context when answering. "
             "When the user asks a generic system check question like 'does this work?', respond exactly: "
             "'Yes, this works! How can I assist you today?' and do not include any health context. "
-            "For all other queries, focus your answers on the user's question and reference health data only when directly relevant. BE CONSISE IN YOUR ANSWER, no more 3 sentences. End your response with a question to the user asking them how exactly they might incorporate your answer content into their own daily life."
+            "For all other queries, focus your answers on the user's question and reference health data only when directly relevant. BE CONSISE IN YOUR ANSWER, no more than 3 sentences, excluding the question portion. Then output a JSON object with exactly two keys: "
+                "\"main\" (your concise answer) and \"question\" (a follow-up question to the user). "
+                "Format it exactly as:\n"
+                "{\"main\": \"<your answer here>\", \"question\": \"<your follow-up question here>?\"}"
         )
     )
 
@@ -584,7 +587,20 @@ def generate_line():
     # 5) Gather and return the response + updated thread_id
     messages = client.beta.threads.messages.list(thread_id=thread_id)
     full_response = messages.data[0].content[0].text.value
-    return jsonify({"response": full_response, "thread_id": thread_id})
+
+   # Extract JSON payload from assistant’s reply and set full narrative as main
+    try:
+        json_start = full_response.index('{')
+        json_str = full_response[json_start:]
+        json_payload = json.loads(json_str)
+        # Use the full narrative (all text before JSON) as the main answer
+        narrative = full_response[:json_start].strip()
+        json_payload["main"] = narrative
+        json_payload["thread_id"] = thread_id
+        return jsonify(json_payload)
+    except (ValueError, json.JSONDecodeError):
+        # Fallback: return full response as main with empty question
+        return jsonify({"thread_id": thread_id, "main": full_response.strip(), "question": ""})
 
 @app.route("/match", methods=["POST"])
 def match():

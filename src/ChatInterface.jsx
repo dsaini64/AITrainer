@@ -100,17 +100,17 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
       // Build the scores object with all health-related scores from sessionStorage (all 12 fields)
       const scores = {
         "Age": sessionStorage.getItem("age") || "25",
-        "VO2 Max": sessionStorage.getItem("vo2") || "45",
+        "VO2 Max": sessionStorage.getItem("vo2") || "4",
         "Preferred Activity": sessionStorage.getItem("activity") || "Running",
-        "Heart Rate": sessionStorage.getItem("heartrate") || "60",
+        "Heart Rate": sessionStorage.getItem("heartrate") || "6",
         "Sleep": sessionStorage.getItem("sleep") || "7",
         "Weakest Area": sessionStorage.getItem("focus") || "Mobility",
-        "Mobility": sessionStorage.getItem("Mobility") || "60",
-        "Endurance": sessionStorage.getItem("Endurance") || "50",
+        "Mobility": sessionStorage.getItem("Mobility") || "6",
+        "Endurance": sessionStorage.getItem("Endurance") || "5",
         "Strength": sessionStorage.getItem("Strength") || "70",
-        "Nutrition": sessionStorage.getItem("Nutrition") || "55",
-        "Mindfulness": sessionStorage.getItem("Mindfulness") || "40",
-        "Sleep Score": sessionStorage.getItem("Sleep") || "65"
+        "Nutrition": sessionStorage.getItem("Nutrition") || "5",
+        "Mindfulness": sessionStorage.getItem("Mindfulness") || "4",
+        "Sleep Score": sessionStorage.getItem("Sleep") || "6"
       };
       // Convert the scores object to a string for health_data
       const health_data = Object.entries(scores)
@@ -130,7 +130,18 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
 
       const data = await response.json();
       if (data.thread_id) setThreadId(data.thread_id);
-      setMessages(prev => [...prev, { role: 'bot', text: data.response.trim() || 'No valid response.' }]);
+      // Display the main answer
+      if (data.main) {
+        setMessages(prev => [...prev, { role: 'bot', text: data.main }]);
+      }
+      // Display the follow-up question in its own bubble, ensuring it ends with a question mark
+      if (data.question) {
+        let questionText = data.question.trim();
+        if (!questionText.endsWith('?')) {
+          questionText += '?';
+        }
+        setMessages(prev => [...prev, { role: 'bot', text: questionText }]);
+      }
 
 
       setIsLoading(false);
@@ -162,9 +173,16 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
       });
       const data = await response.json();
       if (data.thread_id) setThreadId(data.thread_id);
-      setMessages(prev => [...prev, { role: 'bot', text: data.response.trim() || 'No valid response.' }]);
-
-
+      // Display the main answer
+      if (data.main) {
+        setMessages(prev => [...prev, { role: 'bot', text: data.main }]);
+      }
+      // Display the follow-up question in its own bubble, ensuring it ends with a question mark
+      if (data.question) {
+        let questionText = data.question.trim();
+        if (!questionText.endsWith('?')) questionText += '?';
+        setMessages(prev => [...prev, { role: 'bot', text: questionText }]);
+      }
       setIsLoading(false);
     } catch (err) {
       console.error(err);
