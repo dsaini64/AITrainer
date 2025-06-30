@@ -41,7 +41,24 @@ export default function LongevityTip() {
           placeholder="e.g. tennis"
           style={{ width: "100%", padding: "10px", margin: "12px 0", boxSizing: "border-box" }}
         />
-        <button onClick={fetchTip} style={{ marginBottom: "10px", backgroundColor: "#CFF6EA"}}>Send</button>
+        {tip ? (
+          <button
+            onClick={() => {
+              setTip("");
+              setActivity("");
+            }}
+            style={{ marginBottom: "10px", backgroundColor: "#CFF6EA" }}
+          >
+            Clear
+          </button>
+        ) : (
+          <button
+            onClick={fetchTip}
+            style={{ marginBottom: "10px", backgroundColor: "#CFF6EA" }}
+          >
+            Send
+          </button>
+        )}
         {isLoading && (
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
             Generating insight...
