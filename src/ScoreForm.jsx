@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 
 export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
@@ -17,7 +18,7 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
   // Function to load facts from backend
   const loadFacts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/facts/testuser');
+      const res = await fetch(`/facts/testuser`);
       const data = await res.json();
       setUserFacts(data);
     } catch (err) {
@@ -63,7 +64,7 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
       "Habits": "3",
       "Medical History": "10"
     };
-    const res = await fetch("http://localhost:5000/generate-plan", {
+    const res = await fetch(`/generate-plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: "testuser", scores: mergedScores }),
@@ -96,7 +97,7 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
   // Helper to add a fact (calls backend)
   const addFact = async (fact) => {
     try {
-      await fetch('http://localhost:5000/facts', {
+      await fetch(`/facts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: 'testuser', fact }),

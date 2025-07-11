@@ -1,6 +1,8 @@
 import json
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from flask import Response, stream_with_context, make_response
+
 
 import os
 import openai
@@ -11,9 +13,28 @@ import time
 import random
 from datetime import datetime
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 app = Flask(__name__)
-CORS(app)
-CORS(app)
+# Allow your React dev server (ports 3000 & 5173) and your ngrok URL
+CORS(app,
+     resources={r"/*": {"origins": [
+         "http://localhost:3000",
+         "http://localhost:5173",
+         "https://e055fe9becc0.ngrok-free.app"
+     ]}},
+     supports_credentials=True,
+     allow_headers=["Content-Type"]
+)
+# Debug helper to set CORS headers on every response
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
+
+from collections import defaultdict
+pending_messages = defaultdict(list)
 
 # Hold the thread across sessions
 saved_thread = None
@@ -114,7 +135,11 @@ facts_store = {}
 
 @app.route('/facts/<user_id>', methods=['GET'])
 def get_facts(user_id):
-    return jsonify(facts_store.get(user_id, []))
+    print(f"HIT /facts/{user_id}")
+    facts = facts_store.get(user_id, [])
+    resp = jsonify(facts)
+    resp.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+    return resp
 
 @app.route('/facts', methods=['POST'])
 def add_fact():
@@ -603,7 +628,7 @@ def generate_line():
             "Always remember prior user inputs and use past conversation context when answering. "
             "When the user asks a generic system check question like 'does this work?', respond exactly: "
             "'Yes, this works! How can I assist you today?' and do not include any health context. "
-            "For all other queries, focus your answers on the user's question and reference health data only when directly relevant, and providing a coaching follow-up question for the user. BE CONSISE IN YOUR ANSWER, no more than 3 sentences. Then output a JSON object with exactly two keys: "
+            "For all other queries, focus your answers on the user's question and reference health data only when directly relevant, and providing a action oriented follow-up question for the user. BE CONSISE IN YOUR ANSWER, no more than 3 sentences. Then output a JSON object with exactly two keys: "
                 "\"main\": \"<your answer here>\", \"question\": \"<your question here>?\""
         )
     )
@@ -644,6 +669,11 @@ def generate_line():
             payload["main"] = payload.get("main", narrative)
             payload["question"] = payload.get("question", "").strip()
             payload["thread_id"] = thread_id
+            # Enqueue this response for SSE clients
+            pending_messages[user_id].append({
+                "role": "assistant",
+                "text": payload.get("main", "")
+            })
             return jsonify(payload)
         except json.JSONDecodeError:
             pass
@@ -657,11 +687,18 @@ def generate_line():
     else:
         main_text = text
         question = ""
-    return jsonify({
+    # Fallback payload
+    resp_payload = {
         "thread_id": thread_id,
         "main": main_text,
         "question": question
+    }
+    # Enqueue for SSE
+    pending_messages[user_id].append({
+        "role": "assistant",
+        "text": resp_payload["main"]
     })
+    return jsonify(resp_payload)
         
 #@app.route('/generate-line', methods=['POST'])
 #def generate_line():
@@ -804,12 +841,47 @@ def reset_thread(user_id):
     thread_cache.pop(user_id, None)
     return jsonify({"success": True})
 
+@app.route('/pending/<user_id>', methods=['GET', 'POST'])
+def enqueue_message(user_id):
+    if request.method == 'GET':
+        print(f"HIT GET /pending/{user_id}")
+        msgs = pending_messages[user_id][:]
+        pending_messages[user_id].clear()
+        resp = jsonify(msgs)
+        resp.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+        return resp
+    print(f"HIT POST /pending/{user_id}: {request.get_json()}")
+    data = request.get_json() or {}
+    pending_messages[user_id].append(data)
+    resp = jsonify({"success": True})
+    resp.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+    return resp
+    
+@app.route('/stream/<user_id>', methods=['GET'])
+def stream(user_id):
+    print(f"HIT /stream/{user_id}")
+    def event_gen():
+        while True:
+            queue = pending_messages.get(user_id, [])
+            if queue:
+                for msg in queue:
+                    yield f"data: {json.dumps(msg)}\n\n"
+                pending_messages[user_id].clear()
+            time.sleep(1)
 
-        
+    # SSE headers + CORS
+    headers = {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': 'http://localhost:5173'
+    }
+    return Response(stream_with_context(event_gen()), headers=headers)
 
 
 print("Registered routes:")
 print(app.url_map)
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-
+    app.run(host='0.0.0.0', debug=True, port=5000)
+    
+    

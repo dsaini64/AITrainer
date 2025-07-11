@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+
 export default function ChatInterface({ messages, setMessages, healthScores }) {
   // Populate sessionStorage with defaults for both general and health-related scores
   useEffect(() => {
@@ -41,7 +42,7 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
       "Mindfulness": sessionStorage.getItem("Mindfulness") || "40",
       "Sleep Score": sessionStorage.getItem("Sleep") || "65"
     };
-    fetch('http://localhost:5000/prepare-thread', {
+    fetch('/prepare-thread', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: 'testuser', health_data: scores })
@@ -57,10 +58,35 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
 
   // Load user facts into ChatInterface for display
   useEffect(() => {
-    fetch('http://localhost:5000/facts/testuser')
+    fetch('/facts/testuser')
       .then(res => res.json())
       .then(data => setUserFacts(data))
       .catch(err => console.error('Failed to load user facts:', err));
+  }, []);
+
+  // Listen for assistant messages via SSE
+  useEffect(() => {
+    // Use absolute backend URL for SSE
+    const es = new EventSource('http://localhost:5000/stream/testuser');
+    es.onmessage = e => {
+      try {
+        const incoming = JSON.parse(e.data);
+        const msg = {
+          role: incoming.role === 'assistant' ? 'bot' : incoming.role,
+          text: incoming.text
+        };
+        setMessages(prev => [...prev, msg]);
+      } catch (err) {
+        console.error('Error parsing SSE message', err);
+      }
+    };
+    es.onerror = err => {
+      console.error('SSE connection error:', err);
+      es.close();
+    };
+    return () => {
+      es.close();
+    };
   }, []);
 
   const health = healthScores ?? JSON.parse(sessionStorage.getItem('healthScores') || '{}');
@@ -80,7 +106,7 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
   // Helper to persist a new fact to backend store
   const addFact = async (fact) => {
     try {
-      await fetch('http://localhost:5000/facts', {
+      await fetch('/facts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: 'testuser', fact }),
@@ -91,11 +117,50 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
   };
 
   const handleSend = async () => {
+    let tid = threadId;
     setIsLoading(true);
     const message = query.trim();
     if (!message) {
       setIsLoading(false);
       return;
+    }
+
+    // Build the scores object with all health-related scores from sessionStorage (all 12 fields)
+    const scoresForHealth = {
+      "Age": sessionStorage.getItem("age") || "25",
+      "VO2 Max": sessionStorage.getItem("vo2") || "4",
+      "Preferred Activity": sessionStorage.getItem("activity") || "Running",
+      "Heart Rate": sessionStorage.getItem("heartrate") || "6",
+      "Sleep": sessionStorage.getItem("sleep") || "7",
+      "Weakest Area": sessionStorage.getItem("focus") || "Mobility",
+      "Mobility": sessionStorage.getItem("Mobility") || "6",
+      "Endurance": sessionStorage.getItem("Endurance") || "5",
+      "Strength": sessionStorage.getItem("Strength") || "70",
+      "Nutrition": sessionStorage.getItem("Nutrition") || "5",
+      "Mindfulness": sessionStorage.getItem("Mindfulness") || "4",
+      "Sleep Score": sessionStorage.getItem("Sleep") || "6"
+    };
+    // Convert the scores object to a string for health_data
+    const health_data = Object.entries(scoresForHealth)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\n");
+
+    // Ensure a conversation thread exists, capturing the returned tid
+    if (!tid) {
+      try {
+        const prepRes = await fetch('/prepare-thread', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: 'testuser', health_data: health_data })
+        });
+        const prepData = await prepRes.json();
+        if (prepData.thread_id) {
+          setThreadId(prepData.thread_id);
+          tid = prepData.thread_id;
+        }
+      } catch (prepErr) {
+        console.error('Failed to prepare thread in handleSend:', prepErr);
+      }
     }
 
     setMessages(prev => [...prev, { role: 'user', text: message }]);
@@ -104,7 +169,7 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
     // Load current facts to use as context for extraction
     let contextFacts = {};
     try {
-      const ctxRes = await fetch('http://localhost:5000/facts/testuser');
+      const ctxRes = await fetch('/facts/testuser');
       contextFacts = await ctxRes.json();
     } catch (err) {
       console.error('Failed to load context facts:', err);
@@ -112,7 +177,7 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
 
     try {
       try {
-        const factRes = await fetch("http://localhost:5000/extract-fact", {
+        const factRes = await fetch('/extract-fact', {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -137,29 +202,10 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
         console.error("Error extracting fact:", err);
       }
 
-      // Build the scores object with all health-related scores from sessionStorage (all 12 fields)
-      const scores = {
-        "Age": sessionStorage.getItem("age") || "25",
-        "VO2 Max": sessionStorage.getItem("vo2") || "4",
-        "Preferred Activity": sessionStorage.getItem("activity") || "Running",
-        "Heart Rate": sessionStorage.getItem("heartrate") || "6",
-        "Sleep": sessionStorage.getItem("sleep") || "7",
-        "Weakest Area": sessionStorage.getItem("focus") || "Mobility",
-        "Mobility": sessionStorage.getItem("Mobility") || "6",
-        "Endurance": sessionStorage.getItem("Endurance") || "5",
-        "Strength": sessionStorage.getItem("Strength") || "70",
-        "Nutrition": sessionStorage.getItem("Nutrition") || "5",
-        "Mindfulness": sessionStorage.getItem("Mindfulness") || "4",
-        "Sleep Score": sessionStorage.getItem("Sleep") || "6"
-      };
-      // Convert the scores object to a string for health_data
-      const health_data = Object.entries(scores)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join("\n");
       const payload = {
         query: message,
         health_data,
-        thread_id: threadId
+        thread_id: tid
       };
 
       const response = await fetch('/generate-line', {
@@ -195,9 +241,27 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
   };
 
   const handlePreset = async (preset) => {
+    let tid = threadId;
     setIsLoading(true);
     setHiddenRecs(prev => [...prev, preset]);
     setMessages(prev => [...prev, { role: 'user', text: preset }]);
+    // Ensure a conversation thread exists, capturing the returned tid
+    if (!tid) {
+      try {
+        const prepRes = await fetch('/prepare-thread', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: 'testuser', health_data: `Age: ${sessionStorage.getItem("age") || "25"}\nVO2 Max: ${sessionStorage.getItem("vo2") || "45"}\nPreferred Activity: ${sessionStorage.getItem("activity") || "Running"}\nHeart Rate: ${sessionStorage.getItem("heartrate") || "60"}\nSleep: ${sessionStorage.getItem("sleep") || "7"}\nWeakest Area: ${sessionStorage.getItem("focus") || "Mobility"}\nMobility: ${sessionStorage.getItem("Mobility") || "60"}\nEndurance: ${sessionStorage.getItem("Endurance") || "50"}\nStrength: ${sessionStorage.getItem("Strength") || "70"}\nNutrition: ${sessionStorage.getItem("Nutrition") || "55"}\nMindfulness: ${sessionStorage.getItem("Mindfulness") || "40"}\nSleep Score: ${sessionStorage.getItem("Sleep") || "65"}` })
+        });
+        const prepData = await prepRes.json();
+        if (prepData.thread_id) {
+          setThreadId(prepData.thread_id);
+          tid = prepData.thread_id;
+        }
+      } catch (prepErr) {
+        console.error('Failed to prepare thread in handlePreset:', prepErr);
+      }
+    }
     const payload = {
       query: preset,
       health_data: `Age: ${sessionStorage.getItem('age') || 'N/A'}
@@ -205,7 +269,7 @@ VO2 Max: ${sessionStorage.getItem('vo2') || 'N/A'}
 Preferred activity: ${sessionStorage.getItem('activity') || 'N/A'}
 Heart Rate: ${sessionStorage.getItem('heartrate') || 'N/A'}
 Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/night' : 'N/A'}`,
-      thread_id: threadId
+      thread_id: tid
     };
     try {
       const response = await fetch('/generate-line', {
@@ -225,7 +289,8 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
         if (!questionText.endsWith('?')) questionText += '?';
         setMessages(prev => [...prev, { role: 'bot', text: questionText }]);
       }
-  
+
+
       setIsLoading(false);
     } catch (err) {
       console.error(err);
@@ -240,17 +305,13 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
     }
   }, [messages]);
 
+
+
   return (
     <>
       <h2 style={{ textAlign: 'center' }}>Have questions? Ask the Health Chatbot!</h2>
       <div className="chat-layout">
         <div className="chat-interface-container">
-          {/* Preparing chat indicator */}
-          {!threadId && (
-            <div style={{ textAlign: 'center', padding: '10px', fontStyle: 'italic', color: '#888' }}>
-              Preparing chat...
-            </div>
-          )}
           <div className="chat-area">
             <div id="chatMessages" ref={chatContainerRef}>
               {messages.map((msg, i) => (
@@ -316,12 +377,10 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
                 }}
                 placeholder="Ask something..."
                 className="chat-input"
-                disabled={!threadId || isLoading}
               />
               <button
                 className="send-button"
                 onClick={handleSend}
-                disabled={!threadId || isLoading}
               >
                 Send
               </button>

@@ -61,7 +61,7 @@ export default function LongevityTip() {
         )}
         {isLoading && (
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-            Generating insight...
+            Generating insights...
             <span className="dot-typing">
               <span></span><span></span><span></span>
             </span>
