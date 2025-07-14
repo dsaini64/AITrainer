@@ -217,20 +217,21 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
       const data = await response.json();
       console.log('generate-line response data:', data);
       if (data.thread_id) setThreadId(data.thread_id);
+      // Fetch and display any queued assistant messages (main + follow‑up)
+      try {
+        const pendRes = await fetch(`/pending/testuser`);
+        const pendData = await pendRes.json();
+        pendData.forEach(msg => {
+          setMessages(prev => [
+            ...prev,
+            { role: msg.role === 'assistant' ? 'bot' : msg.role, text: msg.text }
+          ]);
+        });
+      } catch (pendErr) {
+        console.error('Failed to load pending messages:', pendErr);
+      }
       // Display the main answer
-      if (data.main) {
-        setMessages(prev => [...prev, { role: 'bot', text: data.main }]);
-      }
-      // Display the follow-up question in its own bubble, ensuring it ends with a question mark
-      if (Object.prototype.hasOwnProperty.call(data, 'question')) {
-        let questionText = (data.question || '').trim();
-        if (questionText && !questionText.endsWith('?')) {
-          questionText += '?';
-        }
-        // Add even if empty to force two bubbles when key exists
-        setMessages(prev => [...prev, { role: 'bot', text: questionText }]);
-      }
-
+      // (Removed direct insertion of main; handled by SSE stream)
 
       setIsLoading(false);
     } catch (err) {
@@ -279,17 +280,21 @@ Sleep: ${sessionStorage.getItem('sleep') ? sessionStorage.getItem('sleep') + 'h/
       });
       const data = await response.json();
       if (data.thread_id) setThreadId(data.thread_id);
+      // Fetch and display any queued assistant messages (main + follow‑up)
+      try {
+        const pendRes = await fetch(`/pending/testuser`);
+        const pendData = await pendRes.json();
+        pendData.forEach(msg => {
+          setMessages(prev => [
+            ...prev,
+            { role: msg.role === 'assistant' ? 'bot' : msg.role, text: msg.text }
+          ]);
+        });
+      } catch (pendErr) {
+        console.error('Failed to load pending messages:', pendErr);
+      }
       // Display the main answer
-      if (data.main) {
-        setMessages(prev => [...prev, { role: 'bot', text: data.main }]);
-      }
-      // Display the follow-up question in its own bubble, ensuring it ends with a question mark
-      if (data.question) {
-        let questionText = data.question.trim();
-        if (!questionText.endsWith('?')) questionText += '?';
-        setMessages(prev => [...prev, { role: 'bot', text: questionText }]);
-      }
-
+      // (Removed direct insertion of main; handled by SSE stream)
 
       setIsLoading(false);
     } catch (err) {

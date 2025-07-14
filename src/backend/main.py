@@ -14,24 +14,26 @@ import random
 from datetime import datetime
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# In-memory store for extracted facts per user
+facts_store = {}
+
+def get_user_facts(user_id):
+    """
+    Return the list of stored facts for a given user.
+    """
+    return facts_store.get(user_id, [])
+
 app = Flask(__name__)
 # Allow your React dev server (ports 3000 & 5173) and your ngrok URL
 CORS(app,
      resources={r"/*": {"origins": [
          "http://localhost:3000",
          "http://localhost:5173",
-         "https://e055fe9becc0.ngrok-free.app"
+         "https://64c2e388b6a8.ngrok-free.app"
      ]}},
      supports_credentials=True,
      allow_headers=["Content-Type"]
 )
-# Debug helper to set CORS headers on every response
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-    return response
 
 from collections import defaultdict
 pending_messages = defaultdict(list)
@@ -55,7 +57,7 @@ def prepare_thread():
         thread_cache[user_id] = thread_id
 
     # Inject existing user facts if any
-    user_facts = facts_store.get(user_id, [])
+    user_facts = get_user_facts(user_id)
     if user_facts:
         facts_summary = "\n".join(f"{fact['topic'].capitalize()}: {fact['fact']}" for fact in user_facts)
         client.beta.threads.messages.create(
@@ -136,9 +138,8 @@ facts_store = {}
 @app.route('/facts/<user_id>', methods=['GET'])
 def get_facts(user_id):
     print(f"HIT /facts/{user_id}")
-    facts = facts_store.get(user_id, [])
+    facts = get_user_facts(user_id)
     resp = jsonify(facts)
-    resp.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
     return resp
 
 @app.route('/facts', methods=['POST'])
@@ -669,11 +670,18 @@ def generate_line():
             payload["main"] = payload.get("main", narrative)
             payload["question"] = payload.get("question", "").strip()
             payload["thread_id"] = thread_id
-            # Enqueue this response for SSE clients
+            # Enqueue the main response
             pending_messages[user_id].append({
                 "role": "assistant",
                 "text": payload.get("main", "")
             })
+            # Enqueue the follow-up question if present
+            question_text = payload.get("question", "").strip()
+            if question_text:
+                pending_messages[user_id].append({
+                    "role": "assistant",
+                    "text": question_text
+                })
             return jsonify(payload)
         except json.JSONDecodeError:
             pass
@@ -693,11 +701,18 @@ def generate_line():
         "main": main_text,
         "question": question
     }
-    # Enqueue for SSE
+    # Enqueue the main response
     pending_messages[user_id].append({
         "role": "assistant",
         "text": resp_payload["main"]
     })
+    # Enqueue the follow-up question from fallback if present
+    question_text = resp_payload.get("question", "").strip()
+    if question_text:
+        pending_messages[user_id].append({
+            "role": "assistant",
+            "text": question_text
+        })
     return jsonify(resp_payload)
         
 #@app.route('/generate-line', methods=['POST'])
@@ -848,13 +863,11 @@ def enqueue_message(user_id):
         msgs = pending_messages[user_id][:]
         pending_messages[user_id].clear()
         resp = jsonify(msgs)
-        resp.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
         return resp
     print(f"HIT POST /pending/{user_id}: {request.get_json()}")
     data = request.get_json() or {}
     pending_messages[user_id].append(data)
     resp = jsonify({"success": True})
-    resp.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
     return resp
     
 @app.route('/stream/<user_id>', methods=['GET'])
@@ -869,12 +882,11 @@ def stream(user_id):
                 pending_messages[user_id].clear()
             time.sleep(1)
 
-    # SSE headers + CORS
+    # SSE headers
     headers = {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': 'http://localhost:5173'
+        'Connection': 'keep-alive'
     }
     return Response(stream_with_context(event_gen()), headers=headers)
 
