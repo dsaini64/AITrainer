@@ -3,12 +3,14 @@ import ScoreForm from "./ScoreForm";
 import FeedbackPanel from "./FeedbackPanel";
 import LongevityTip from "./LongevityTip";
 import ChatInterface from "./ChatInterface";
+import HealthPlanRecommendations from "./HealthPlanRecommendations";
 
 export default function App() {
   const [recommendationData, setRecommendationData] = useState(null);
   const [healthScores, setHealthScores] = useState(null);
   const [activeTab, setActiveTab] = useState("summary");
   const [chatMessages, setChatMessages] = useState([]);
+  const [userFacts, setUserFacts] = useState([]);
 
   return (
     <div style={{
@@ -33,12 +35,18 @@ export default function App() {
         }}>
           HelloFam AI Personal Trainer
         </h1>
-        <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginTop: "10px" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
           <button
             className={`special-button ${activeTab === "summary" ? "active" : ""}`}
             onClick={() => setActiveTab("summary")}
           >
             Health Summary
+          </button>
+          <button
+            className={`special-button ${activeTab === "healthplan" ? "active" : ""}`}
+            onClick={() => setActiveTab("healthplan")}
+          >
+            Health Plan
           </button>
           <button
             className={`special-button ${activeTab === "longevity" ? "active" : ""}`}
@@ -69,6 +77,12 @@ export default function App() {
             onScoreSubmit={setHealthScores}
           />
           <FeedbackPanel recommendationData={recommendationData} />
+        </div>
+        <div style={{ display: activeTab === "healthplan" ? "block" : "none" }}>
+          <HealthPlanRecommendations 
+            healthScores={healthScores}
+            userFacts={userFacts}
+          />
         </div>
         <div style={{ display: activeTab === "longevity" ? "block" : "none" }}>
           <LongevityTip />
