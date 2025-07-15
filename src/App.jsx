@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import ScoreForm from "./ScoreForm";
 import FeedbackPanel from "./FeedbackPanel";
 import LongevityTip from "./LongevityTip";
@@ -6,7 +6,6 @@ import ChatInterface from "./ChatInterface";
 
 export default function App() {
   const [recommendationData, setRecommendationData] = useState(null);
-  const [healthScores, setHealthScores] = useState(null);
   const [activeTab, setActiveTab] = useState("summary");
   const [chatMessages, setChatMessages] = useState([]);
 
@@ -66,7 +65,7 @@ export default function App() {
         <div style={{ display: activeTab === "summary" ? "block" : "none" }}>
           <ScoreForm 
             onRecommendation={setRecommendationData} 
-            onScoreSubmit={setHealthScores}
+            onScoreSubmit={() => {}}
           />
           <FeedbackPanel recommendationData={recommendationData} />
         </div>
@@ -76,8 +75,7 @@ export default function App() {
         <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
           <ChatInterface 
             messages={chatMessages} 
-            setMessages={setChatMessages} 
-            healthScores={healthScores}
+            setMessages={setChatMessages}
           />
         </div>
       </div>

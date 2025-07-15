@@ -30,7 +30,7 @@ export default function FeedbackPanel({ recommendationData }) {
       const result = await res.json();
 
       if (status === "done") {
-        const { current_task, difficulty, total_days_completed, best_gapless_streak, daily_tip, monthly_report, consecutive_days } = result;
+        const { current_task, best_gapless_streak, daily_tip, monthly_report, consecutive_days } = result;
         setFeedback(`You checked in for today, great job!\nBest Streak: ${best_gapless_streak} days\nCurrent Streak: ${consecutive_days} days`);
         setNotification(`Daily Bonus Tip:\n${daily_tip}`);
         if (monthly_report) {

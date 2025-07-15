@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 
-export default function ChatInterface({ messages, setMessages, healthScores }) {
+export default function ChatInterface({ messages, setMessages }) {
   // Populate sessionStorage with defaults for both general and health-related scores
   useEffect(() => {
     sessionStorage.setItem("age", "25");
@@ -23,8 +23,6 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
   const [threadId, setThreadId] = useState(null);
   const [hiddenRecs, setHiddenRecs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  const [userFacts, setUserFacts] = useState([]);
 
   // Pre-warm the conversation thread on component mount
   useEffect(() => {
@@ -56,14 +54,6 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
       .catch(err => console.error('Failed to prepare thread:', err));
   }, []);
 
-  // Load user facts into ChatInterface for display
-  useEffect(() => {
-    fetch('/facts/testuser')
-      .then(res => res.json())
-      .then(data => setUserFacts(data))
-      .catch(err => console.error('Failed to load user facts:', err));
-  }, []);
-
   // Listen for assistant messages via SSE
   useEffect(() => {
     // Use absolute backend URL for SSE
@@ -87,9 +77,7 @@ export default function ChatInterface({ messages, setMessages, healthScores }) {
     return () => {
       es.close();
     };
-  }, []);
-
-  const health = healthScores ?? JSON.parse(sessionStorage.getItem('healthScores') || '{}');
+  }, [setMessages]);
 
   const categoryScores = {
     "Physical Health": 5,
