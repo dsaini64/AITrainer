@@ -890,6 +890,224 @@ def stream(user_id):
     }
     return Response(stream_with_context(event_gen()), headers=headers)
 
+@app.route('/prepare-plan-discussion', methods=['POST'])
+def prepare_plan_discussion():
+    """Prepare a conversation thread specifically for plan discussion"""
+    data = request.get_json() or {}
+    user_id = data.get('user_id', 'testuser')
+    plan = data.get('plan', {})
+    health_data = data.get('health_data', {})
+
+    # Create or reuse a conversation thread
+    if user_id in thread_cache:
+        thread_id = thread_cache[user_id]
+    else:
+        thread = client.beta.threads.create()
+        thread_id = thread.id
+        thread_cache[user_id] = thread_id
+
+    # Set up the discussion context
+    system_context = f"""
+    You are a supportive health coach helping a user discuss their personalized plan. Your goal is to:
+    1. Present the plan clearly and engagingly
+    2. Listen to the user's questions, concerns, and feedback
+    3. Adapt the plan based on their needs and preferences
+    4. Guide them through a structured discussion process
+    5. Ensure they feel confident and motivated about their plan
+
+    User's plan: {json.dumps(plan)}
+    User's health data: {json.dumps(health_data)}
+    
+    Discussion stages:
+    - Introduction: Present the plan warmly and explain each component
+    - Exploration: Encourage questions and gather feedback
+    - Concerns: Address any worries or obstacles they mention
+    - Refinement: Suggest modifications based on their input
+    - Finalization: Confirm the final plan and next steps
+
+    Be conversational, supportive, and flexible. Ask follow-up questions to understand their lifestyle, preferences, and constraints.
+    """
+
+    # Inject the system context
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=system_context
+    )
+
+    return jsonify({"thread_id": thread_id})
+
+@app.route('/start-plan-discussion', methods=['POST'])
+def start_plan_discussion():
+    """Start the plan discussion with an introduction"""
+    data = request.get_json() or {}
+    thread_id = data.get('thread_id')
+    plan = data.get('plan', {})
+    stage = data.get('stage', 'introduction')
+
+    if not thread_id:
+        return jsonify({"error": "Thread ID required"}), 400
+
+    try:
+        # Create the introduction using chat completion
+        intro_prompt = f"""
+        You are a supportive health coach introducing a personalized plan to a user. 
+        Present this plan warmly and engagingly, explaining each component and why it was chosen for them.
+        Ask them what they think and if they have any initial questions.
+        
+        Plan to discuss: {json.dumps(plan, indent=2)}
+        
+        Keep it conversational, encouraging, and end by asking for their thoughts.
+        """
+
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an enthusiastic and supportive health coach who helps users understand and discuss their personalized health plans."},
+                {"role": "user", "content": intro_prompt}
+            ],
+            max_tokens=400,
+            temperature=0.7
+        )
+
+        ai_message = response.choices[0].message.content
+        return jsonify({"message": ai_message, "stage": "exploration"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/discuss-plan', methods=['POST'])
+def discuss_plan():
+    """Handle ongoing plan discussion"""
+    data = request.get_json() or {}
+    thread_id = data.get('thread_id')
+    message = data.get('message')
+    current_stage = data.get('current_stage', 'exploration')
+    plan = data.get('plan', {})
+    concerns = data.get('concerns', [])
+    additional_info = data.get('additional_info', {})
+
+    if not thread_id or not message:
+        return jsonify({"error": "Thread ID and message required"}), 400
+
+    try:
+        # Analyze the user's message to extract insights
+        analysis_prompt = f"""
+        The user said: "{message}"
+        Current discussion stage: {current_stage}
+        Current plan: {json.dumps(plan)}
+        Previous concerns: {concerns}
+        
+        Please:
+        1. Respond to their message thoughtfully
+        2. Identify any new concerns or preferences they've shared
+        3. Suggest plan modifications if needed
+        4. Determine the next appropriate discussion stage
+        5. Extract any additional relevant information about their lifestyle or preferences
+        
+        Be empathetic, practical, and solution-focused. If they express concerns, acknowledge them and offer alternatives.
+        """
+
+        # Add the user's message and analysis request to the thread
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=f"User's response: {message}\n\n{analysis_prompt}"
+        )
+
+        # Use a simpler approach with chat completion for now
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": f"""You are a supportive health coach discussing a personalized plan. 
+                Current stage: {current_stage}
+                User's plan: {json.dumps(plan)}
+                Previous concerns: {concerns}
+                
+                Respond to the user's message and guide the conversation naturally. Be supportive and adaptive."""},
+                {"role": "user", "content": message}
+            ],
+            max_tokens=300,
+            temperature=0.7
+        )
+
+        ai_response = response.choices[0].message.content
+
+        # Simple logic to determine next stage and extract concerns
+        new_concerns = []
+        next_stage = current_stage
+        plan_modifications = []
+        updated_plan = plan
+
+        # Basic keyword detection for concerns and stage progression
+        concern_keywords = ['worried', 'concern', 'difficult', 'hard', 'problem', 'can\'t', 'unable', 'challenge']
+        positive_keywords = ['good', 'great', 'like', 'works', 'fine', 'ready', 'sounds good']
+
+        message_lower = message.lower()
+        
+        if any(word in message_lower for word in concern_keywords):
+            if current_stage == 'exploration':
+                next_stage = 'concerns'
+            new_concerns.append(message)
+        elif any(word in message_lower for word in positive_keywords):
+            if current_stage == 'concerns':
+                next_stage = 'refinement'
+            elif current_stage == 'refinement':
+                next_stage = 'finalization'
+
+        # Extract additional info (simplified)
+        additional_extracted = {}
+        if 'time' in message_lower or 'schedule' in message_lower:
+            additional_extracted['time_constraints'] = message
+        if 'prefer' in message_lower:
+            additional_extracted['preferences'] = message
+
+        return jsonify({
+            "message": ai_response,
+            "stage": next_stage,
+            "concerns": new_concerns,
+            "additional_info": additional_extracted,
+            "plan_modifications": plan_modifications,
+            "updated_plan": updated_plan
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/finalize-plan-discussion', methods=['POST'])
+def finalize_plan_discussion():
+    """Finalize the plan discussion and prepare for implementation"""
+    data = request.get_json() or {}
+    thread_id = data.get('thread_id')
+    final_plan = data.get('final_plan', {})
+    user_id = data.get('user_id', 'testuser')
+
+    try:
+        # Store the finalized plan
+        # You can add logic here to save the plan to a database or user profile
+        
+        # Generate a motivational closing message
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a supportive health coach concluding a plan discussion. Be encouraging and provide clear next steps."},
+                {"role": "user", "content": f"Please provide an encouraging conclusion for this finalized plan: {json.dumps(final_plan)}. Include next steps and motivation."}
+            ],
+            max_tokens=200,
+            temperature=0.7
+        )
+
+        closing_message = response.choices[0].message.content
+
+        return jsonify({
+            "message": closing_message,
+            "final_plan": final_plan,
+            "status": "completed"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 print("Registered routes:")
 print(app.url_map)
