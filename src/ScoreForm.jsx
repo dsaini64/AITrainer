@@ -49,6 +49,9 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    console.log("Form submitted, generating plan...");
+    
     const mergedScores = {
       "Age": sessionStorage.getItem("age") || scores["Age"],
       "VO2 Max": sessionStorage.getItem("vo2") || scores["VO2 Max"],
@@ -64,21 +67,38 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
       "Habits": "3",
       "Medical History": "10"
     };
-    const res = await fetch(`/generate-plan`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: "testuser", scores: mergedScores }),
-    });
-    const data = await res.json();
-    onRecommendation(data);              // update recommendations
-    onScoreSubmit(mergedScores);         // lift up raw scores
-    sessionStorage.setItem('healthScores', JSON.stringify(mergedScores));
-    sessionStorage.setItem('age', mergedScores["Age"]);
-    sessionStorage.setItem('vo2', mergedScores["VO2 Max"]);
-    sessionStorage.setItem('weakness', mergedScores["Weakest Area"]);
-    sessionStorage.setItem('activity', mergedScores["Preferred Activity"]);
-    sessionStorage.setItem('heartrate', mergedScores["Heart Rate"]);
-    sessionStorage.setItem('sleep', mergedScores["Sleep"]);
+    
+    console.log("Sending scores:", mergedScores);
+    
+    try {
+      const res = await fetch(`/generate-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: "testuser", scores: mergedScores }),
+      });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      console.log("Received recommendation data:", data);
+      
+      onRecommendation(data);              // update recommendations
+      onScoreSubmit(mergedScores);         // lift up raw scores
+      
+      sessionStorage.setItem('healthScores', JSON.stringify(mergedScores));
+      sessionStorage.setItem('age', mergedScores["Age"]);
+      sessionStorage.setItem('vo2', mergedScores["VO2 Max"]);
+      sessionStorage.setItem('weakness', mergedScores["Weakest Area"]);
+      sessionStorage.setItem('activity', mergedScores["Preferred Activity"]);
+      sessionStorage.setItem('heartrate', mergedScores["Heart Rate"]);
+      sessionStorage.setItem('sleep', mergedScores["Sleep"]);
+      
+    } catch (error) {
+      console.error("Error generating plan:", error);
+      alert("Error generating your plan. Please check the console for details.");
+    }
   };
 
   const handleClear = () => {
