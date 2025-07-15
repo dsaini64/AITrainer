@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import ScoreForm from "./ScoreForm";
 import FeedbackPanel from "./FeedbackPanel";
 import LongevityTip from "./LongevityTip";
 import ChatInterface from "./ChatInterface";
+import HealthPlan from "./HealthPlan";
 
 export default function App() {
   const [recommendationData, setRecommendationData] = useState(null);
@@ -52,6 +53,12 @@ export default function App() {
           >
             Chatbot
           </button>
+          <button
+            className={`special-button ${activeTab === "plan" ? "active" : ""}`}
+            onClick={() => setActiveTab("plan")}
+          >
+            Health Plan
+          </button>
         </div>
       </div>
 
@@ -61,8 +68,10 @@ export default function App() {
         borderRadius: "10px",
         width: "600px",
         margin: "0 auto",
-        minHeight: "150px"
+        flexGrow: 1,
+        overflowY: "auto"
       }}>
+        {/* Health Summary Tab */}
         <div style={{ display: activeTab === "summary" ? "block" : "none" }}>
           <ScoreForm 
             onRecommendation={setRecommendationData} 
@@ -70,15 +79,21 @@ export default function App() {
           />
           <FeedbackPanel recommendationData={recommendationData} />
         </div>
+        {/* Longevity Insights Tab */}
         <div style={{ display: activeTab === "longevity" ? "block" : "none" }}>
           <LongevityTip />
         </div>
+        {/* Chatbot Tab */}
         <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
           <ChatInterface 
             messages={chatMessages} 
             setMessages={setChatMessages} 
             healthScores={healthScores}
           />
+        </div>
+        {/* Health Plan Tab */}
+        <div style={{ display: activeTab === "plan" ? "block" : "none" }}>
+          <HealthPlan healthScores={healthScores} />
         </div>
       </div>
     </div>

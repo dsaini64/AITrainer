@@ -29,7 +29,7 @@ CORS(app,
      resources={r"/*": {"origins": [
          "http://localhost:3000",
          "http://localhost:5173",
-         "https://64c2e388b6a8.ngrok-free.app"
+         "https://7f7e9dcb8c96.ngrok-free.app"
      ]}},
      supports_credentials=True,
      allow_headers=["Content-Type"]
