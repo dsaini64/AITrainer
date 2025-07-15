@@ -135,10 +135,10 @@ export default function App() {
         {/* Tab Content */}
         {activeTab === "summary" && (
           <div>
-            <ScoreForm
-              onRecommendationGenerated={setRecommendationData}
-              onScoresUpdated={setHealthScores}
-            />
+                         <ScoreForm
+               onRecommendation={setRecommendationData}
+               onScoreSubmit={setHealthScores}
+             />
             {recommendationData && (
               <div style={{ marginTop: "20px" }}>
                 <FeedbackPanel data={recommendationData} />
