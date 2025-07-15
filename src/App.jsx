@@ -141,7 +141,7 @@ export default function App() {
              />
             {recommendationData && (
               <div style={{ marginTop: "20px" }}>
-                <FeedbackPanel data={recommendationData} />
+                                 <FeedbackPanel recommendationData={recommendationData} />
                 <div style={{ marginTop: "15px" }}>
                   <button
                     onClick={startPlanDiscussion}
