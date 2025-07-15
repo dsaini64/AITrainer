@@ -3,13 +3,18 @@ import ScoreForm from "./ScoreForm";
 import FeedbackPanel from "./FeedbackPanel";
 import LongevityTip from "./LongevityTip";
 import ChatInterface from "./ChatInterface";
+
 import PlanDiscussion from "./PlanDiscussion";
+
+import HealthPlanRecommendations from "./HealthPlanRecommendations";
+
 
 export default function App() {
   const [recommendationData, setRecommendationData] = useState(null);
   const [healthScores, setHealthScores] = useState(null);
   const [activeTab, setActiveTab] = useState("summary");
   const [chatMessages, setChatMessages] = useState([]);
+
   const [currentPlan, setCurrentPlan] = useState(null);
 
   // Generate a sample plan for demonstration
@@ -35,6 +40,8 @@ export default function App() {
     }
     setActiveTab("plan-discussion");
   };
+=======
+  const [userFacts, setUserFacts] = useState([]);
 
   return (
     <div style={{
@@ -62,6 +69,7 @@ export default function App() {
           AI Health Trainer
         </h1>
 
+
         {/* Tab Navigation */}
         <div style={{
           display: "flex",
@@ -70,6 +78,9 @@ export default function App() {
           marginBottom: "20px",
           flexWrap: "wrap"
         }}>
+
+        <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
+
           <button
             onClick={() => setActiveTab("summary")}
             style={{
@@ -86,6 +97,7 @@ export default function App() {
             Health Assessment
           </button>
           <button
+
             onClick={() => setActiveTab("chat")}
             style={{
               padding: "10px 20px",
@@ -97,6 +109,16 @@ export default function App() {
               fontWeight: "500",
               transition: "all 0.2s ease"
             }}
+
+            className={`special-button ${activeTab === "healthplan" ? "active" : ""}`}
+            onClick={() => setActiveTab("healthplan")}
+          >
+            Health Plan
+          </button>
+          <button
+            className={`special-button ${activeTab === "longevity" ? "active" : ""}`}
+            onClick={() => setActiveTab("longevity")}
+
           >
             Health Chat
           </button>
@@ -131,6 +153,7 @@ export default function App() {
             Daily Tip
           </button>
         </div>
+
 
         {/* Tab Content */}
         {activeTab === "summary" && (
@@ -168,6 +191,33 @@ export default function App() {
         )}
         
         {activeTab === "chat" && (
+=======
+      <div style={{
+        background: "#fafbfc",
+        padding: "16px",
+        borderRadius: "10px",
+        width: "600px",
+        margin: "0 auto",
+        minHeight: "150px"
+      }}>
+        <div style={{ display: activeTab === "summary" ? "block" : "none" }}>
+          <ScoreForm 
+            onRecommendation={setRecommendationData} 
+            onScoreSubmit={setHealthScores}
+          />
+          <FeedbackPanel recommendationData={recommendationData} />
+        </div>
+        <div style={{ display: activeTab === "healthplan" ? "block" : "none" }}>
+          <HealthPlanRecommendations 
+            healthScores={healthScores}
+            userFacts={userFacts}
+          />
+        </div>
+        <div style={{ display: activeTab === "longevity" ? "block" : "none" }}>
+          <LongevityTip />
+        </div>
+        <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
+
           <ChatInterface 
             messages={chatMessages} 
             setMessages={setChatMessages}
