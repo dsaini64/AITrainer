@@ -61,11 +61,26 @@ export default function ChatInterface({ messages, setMessages }) {
     es.onmessage = e => {
       try {
         const incoming = JSON.parse(e.data);
-        const msg = {
-          role: incoming.role === 'assistant' ? 'bot' : incoming.role,
-          text: incoming.text
-        };
-        setMessages(prev => [...prev, msg]);
+        
+        // Skip heartbeat messages
+        if (incoming.type === 'heartbeat') {
+          return;
+        }
+        
+        // Handle error messages
+        if (incoming.type === 'error') {
+          console.error('SSE error message:', incoming.message);
+          return;
+        }
+        
+        // Handle regular chat messages
+        if (incoming.text) {
+          const msg = {
+            role: incoming.role === 'assistant' ? 'bot' : incoming.role,
+            text: incoming.text
+          };
+          setMessages(prev => [...prev, msg]);
+        }
       } catch (err) {
         console.error('Error parsing SSE message', err);
       }
