@@ -12,7 +12,16 @@ from openai import OpenAI
 import time
 import random
 from datetime import datetime
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Initialize OpenAI client with graceful error handling
+try:
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    openai_available = True
+except Exception as e:
+    print(f"Warning: OpenAI client not initialized - {e}")
+    print("The app will run in demo mode. Set OPENAI_API_KEY environment variable for full functionality.")
+    client = None
+    openai_available = False
 
 # In-memory store for extracted facts per user
 facts_store = {}
@@ -34,6 +43,15 @@ CORS(app,
      supports_credentials=True,
      allow_headers=["Content-Type"]
 )
+
+# Health check endpoint
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'healthy',
+        'openai_available': openai_available,
+        'message': 'Server is running' + (' with OpenAI' if openai_available else ' in demo mode')
+    })
 
 from collections import defaultdict
 pending_messages = defaultdict(list)
