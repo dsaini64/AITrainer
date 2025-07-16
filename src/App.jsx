@@ -13,7 +13,8 @@ export default function App() {
   const [recommendationData, setRecommendationData] = useState(null);
   const [activeTab, setActiveTab] = useState("summary");
   const [chatMessages, setChatMessages] = useState([]);
-
+  const [healthScores, setHealthScores] = useState(null);
+  const [userFacts, setUserFacts] = useState([]);
   const [currentPlan, setCurrentPlan] = useState(null);
 
   // Generate a sample plan for demonstration
@@ -39,8 +40,6 @@ export default function App() {
     }
     setActiveTab("plan-discussion");
   };
-=======
-  const [userFacts, setUserFacts] = useState([]);
 
   return (
     <div style={{
@@ -96,28 +95,23 @@ export default function App() {
             Health Assessment
           </button>
           <button
-
-            onClick={() => setActiveTab("chat")}
+            onClick={() => setActiveTab("healthplan")}
             style={{
               padding: "10px 20px",
-              backgroundColor: activeTab === "chat" ? "#3498db" : "#ecf0f1",
-              color: activeTab === "chat" ? "white" : "#2c3e50",
+              backgroundColor: activeTab === "healthplan" ? "#3498db" : "#ecf0f1",
+              color: activeTab === "healthplan" ? "white" : "#2c3e50",
               border: "none",
               borderRadius: "5px",
               cursor: "pointer",
               fontWeight: "500",
               transition: "all 0.2s ease"
             }}
-
-            className={`special-button ${activeTab === "healthplan" ? "active" : ""}`}
-            onClick={() => setActiveTab("healthplan")}
           >
             Health Plan
           </button>
           <button
             className={`special-button ${activeTab === "longevity" ? "active" : ""}`}
             onClick={() => setActiveTab("longevity")}
-
           >
             Health Chat
           </button>
@@ -152,18 +146,18 @@ export default function App() {
             Daily Tip
           </button>
         </div>
-
+        </div>
 
         {/* Tab Content */}
         {activeTab === "summary" && (
           <div>
-                         <ScoreForm
-               onRecommendation={setRecommendationData}
-               onScoreSubmit={setHealthScores}
-             />
+            <ScoreForm
+              onRecommendation={setRecommendationData}
+              onScoreSubmit={setHealthScores}
+            />
             {recommendationData && (
               <div style={{ marginTop: "20px" }}>
-                                 <FeedbackPanel recommendationData={recommendationData} />
+                <FeedbackPanel recommendationData={recommendationData} />
                 <div style={{ marginTop: "15px" }}>
                   <button
                     onClick={startPlanDiscussion}
@@ -190,39 +184,20 @@ export default function App() {
         )}
         
         {activeTab === "chat" && (
-=======
-      <div style={{
-        background: "#fafbfc",
-        padding: "16px",
-        borderRadius: "10px",
-        width: "600px",
-        margin: "0 auto",
-        minHeight: "150px"
-      }}>
-        <div style={{ display: activeTab === "summary" ? "block" : "none" }}>
-          <ScoreForm 
-            onRecommendation={setRecommendationData} 
-            onScoreSubmit={() => {}}
-          />
-          <FeedbackPanel recommendationData={recommendationData} />
-        </div>
+          <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
+            <ChatInterface 
+              messages={chatMessages} 
+              setMessages={setChatMessages}
+            />
+          </div>
+        )}
+
         <div style={{ display: activeTab === "healthplan" ? "block" : "none" }}>
           <HealthPlanRecommendations 
             healthScores={healthScores}
             userFacts={userFacts}
           />
         </div>
-        <div style={{ display: activeTab === "longevity" ? "block" : "none" }}>
-          <LongevityTip />
-        </div>
-        <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
-
-          <ChatInterface 
-            messages={chatMessages} 
-            setMessages={setChatMessages}
-
-          />
-        )}
 
         {activeTab === "plan-discussion" && (
           <div>
