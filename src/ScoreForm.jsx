@@ -2,9 +2,7 @@
 import React, { useState, useEffect } from "react";
 
 export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
-  const numericFields = ["Age", "VO2 Max", "Heart Rate", "Sleep"];
-
-  const [scores, setScores] = useState({
+  const [scores] = useState({
     "Age": 25,
     "VO2 Max": 30,
     "Weakest Area": "Nutrition",
@@ -13,14 +11,12 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
     "Sleep": 7,
   });
 
-  const [userFacts, setUserFacts] = useState([]);
-
   // Function to load facts from backend
   const loadFacts = async () => {
     try {
       const res = await fetch(`/facts/testuser`);
-      const data = await res.json();
-      setUserFacts(data);
+      await res.json();
+      // Facts loaded but not stored locally
     } catch (err) {
       console.error('Failed to load facts:', err);
     }
@@ -39,13 +35,6 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
       window.removeEventListener('userFactsUpdated', handleFactsUpdated);
     };
   }, []);
-
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    const parsedValue = numericFields.includes(name) ? Number(value) : value;
-    setScores((prev) => ({ ...prev, [name]: parsedValue }));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -114,20 +103,6 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
     sessionStorage.removeItem('sleep');
   };
 
-  // Helper to add a fact (calls backend)
-  const addFact = async (fact) => {
-    try {
-      await fetch(`/facts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: 'testuser', fact }),
-      });
-      setUserFacts((prev) => ([...prev, fact]));
-    } catch (err) {
-      console.error('Failed to save fact:', err);
-    }
-  };
-
   return (
     <div style={{ display: 'flex', position: 'relative', justifyContent: 'center', alignItems: 'flex-start' }}>
       <form onSubmit={handleSubmit} style={{ maxWidth: 600, margin: "20px", width: "100%", boxSizing: "border-box" }}>
@@ -152,20 +127,6 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
                 <li>Heart Rate: {sessionStorage.getItem('heartrate') || scores["Heart Rate"]}</li>
                 <li>Sleep: {(sessionStorage.getItem('sleep') || scores["Sleep"]) + 'h/night'}</li>
               </ul>
-              {userFacts.length > 0 && (
-                <div style={{ marginTop: "40px" }}>
-                  <strong>What the AI Trainer knows about you:</strong>
-                  <ul style={{ listStyle: 'none', padding: 0 }}>
-                    {userFacts.map((fact, index) => (
-                      <li key={index} style={{ display: 'flex', alignItems: 'center' }}>
-                        <span>
-                          {fact.topic.charAt(0).toUpperCase() + fact.topic.slice(1)}: {fact.fact}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
             <div style={{ flex: 1, flexShrink: 0 }}>
               <strong>Your Health Scores:</strong>
