@@ -1,0 +1,87 @@
+diff --git a/src/ChatInterface.jsx b/src/ChatInterface.jsx
+index ef85b04..437310a 100644
+--- a/src/ChatInterface.jsx
++++ b/src/ChatInterface.jsx
+@@ -61,11 +61,26 @@ export default function ChatInterface({ messages, setMessages }) {
+     es.onmessage = e => {
+       try {
+         const incoming = JSON.parse(e.data);
+-        const msg = {
+-          role: incoming.role === 'assistant' ? 'bot' : incoming.role,
+-          text: incoming.text
+-        };
+-        setMessages(prev => [...prev, msg]);
++        
++        // Skip heartbeat messages
++        if (incoming.type === 'heartbeat') {
++          return;
++        }
++        
++        // Handle error messages
++        if (incoming.type === 'error') {
++          console.error('SSE error message:', incoming.message);
++          return;
++        }
++        
++        // Handle regular chat messages
++        if (incoming.text) {
++          const msg = {
++            role: incoming.role === 'assistant' ? 'bot' : incoming.role,
++            text: incoming.text
++          };
++          setMessages(prev => [...prev, msg]);
++        }
+       } catch (err) {
+         console.error('Error parsing SSE message', err);
+       }
+diff --git a/src/backend/main.py b/src/backend/main.py
+index 33ae89d..b496b50 100644
+--- a/src/backend/main.py
++++ b/src/backend/main.py
+@@ -891,20 +891,39 @@ def enqueue_message(user_id):
+ @app.route('/stream/<user_id>', methods=['GET'])
+ def stream(user_id):
+     print(f"HIT /stream/{user_id}")
++    
+     def event_gen():
+-        while True:
+-            queue = pending_messages.get(user_id, [])
+-            if queue:
+-                for msg in queue:
+-                    yield f"data: {json.dumps(msg)}\n\n"
+-                pending_messages[user_id].clear()
+-            time.sleep(1)
++        timeout_count = 0
++        max_timeout = 300  # 5 minutes timeout
++        
++        try:
++            while timeout_count < max_timeout:
++                queue = pending_messages.get(user_id, [])
++                if queue:
++                    for msg in queue:
++                        yield f"data: {json.dumps(msg)}\n\n"
++                    pending_messages[user_id].clear()
++                    timeout_count = 0  # Reset timeout when we send data
++                else:
++                    # Send heartbeat to keep connection alive
++                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
++                    timeout_count += 1
++                
++                time.sleep(1)
++                
++        except GeneratorExit:
++            print(f"SSE connection closed for user {user_id}")
++        except Exception as e:
++            print(f"SSE error for user {user_id}: {e}")
++            yield f"data: {json.dumps({'type': 'error', 'message': 'Connection error'})}\n\n"
+ 
+     # SSE headers
+     headers = {
+         'Content-Type': 'text/event-stream',
+         'Cache-Control': 'no-cache',
+-        'Connection': 'keep-alive'
++        'Connection': 'keep-alive',
++        'Access-Control-Allow-Origin': '*',
++        'Access-Control-Allow-Headers': 'Cache-Control'
+     }
+     return Response(stream_with_context(event_gen()), headers=headers)
