@@ -10,12 +10,15 @@ export default defineConfig({
       '/query': 'http://localhost:5000',
       '/longevity-tip': 'http://localhost:5000',
       '/generate-line': 'http://localhost:5000',
-      '/facts':       'http://localhost:5000',
-      '/pending':     'http://localhost:5000',
-      '/stream':      { target: 'http://localhost:5000', ws: true },
-      '/prepare-thread':   'http://localhost:5000',
-      '/extract-fact':     'http://localhost:5000',
-
+      '/facts': 'http://localhost:5000',
+      '/pending': 'http://localhost:5000',
+      '/stream': { target: 'http://localhost:5000', ws: true },
+      '/prepare-thread': 'http://localhost:5000',
+      '/extract-fact': 'http://localhost:5000',
+      '/initialize-plan-discussion': 'http://localhost:5000',
+      '/discuss-plan': 'http://localhost:5000',
+      '/finalize-plan-discussion': 'http://localhost:5000',
+      '/api': 'http://localhost:5000'
     }
   }
 });

@@ -42,19 +42,19 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
     console.log("Form submitted, generating plan...");
     
     const mergedScores = {
-      "Age": sessionStorage.getItem("age") || scores["Age"],
-      "VO2 Max": sessionStorage.getItem("vo2") || scores["VO2 Max"],
+      "Age": parseInt(sessionStorage.getItem("age")) || scores["Age"],
+      "VO2 Max": parseInt(sessionStorage.getItem("vo2")) || scores["VO2 Max"],
       "Preferred Activity": sessionStorage.getItem("activity") || scores["Preferred Activity"],
-      "Heart Rate": sessionStorage.getItem("heartrate") || scores["Heart Rate"],
-      "Sleep": sessionStorage.getItem("sleep") || scores["Sleep"],
+      "Heart Rate": parseInt(sessionStorage.getItem("heartrate")) || scores["Heart Rate"],
+      "Sleep": parseInt(sessionStorage.getItem("sleep")) || scores["Sleep"],
       "Weakest Area": sessionStorage.getItem("focus") || scores["Weakest Area"],
-      "Physical Health": "5",
-      "Nutrition": "7",
-      "Sleep & Recovery": "8",
-      "Emotional Health": 9,
-      "Social Connection": "4",
-      "Habits": "3",
-      "Medical History": "10"
+      "Physical Health": parseInt(sessionStorage.getItem("Physical")) || 5,
+      "Nutrition": parseInt(sessionStorage.getItem("Nutrition")) || 7,
+      "Sleep & Recovery": parseInt(sessionStorage.getItem("Sleep")) || 8,
+      "Emotional Health": parseInt(sessionStorage.getItem("Emotional")) || 9,
+      "Social Connection": parseInt(sessionStorage.getItem("Social")) || 4,
+      "Habits": parseInt(sessionStorage.getItem("Habits")) || 3,
+      "Medical History": parseInt(sessionStorage.getItem("Medical")) || 10
     };
     
     console.log("Sending scores:", mergedScores);

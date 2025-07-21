@@ -1,69 +1,60 @@
-import React, { useState, useEffect } from "react";
-import HealthSummary from "./HealthSummary";
-import ChatInterface from "./ChatInterface";
-import HealthPlanRecommendations from "./HealthPlanRecommendations";
+import React from "react";
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState("healthsummary");
-  const [chatMessages, setChatMessages] = useState([]);
-  const [healthScores, setHealthScores] = useState(null);
-  const [userFacts, setUserFacts] = useState([]);
-  const [currentPlan, setCurrentPlan] = useState(null);
+const HealthPlan = ({ onStartDiscussion }) => {
+  // This component provides a simple interface to start plan discussion
+  // The actual plan will be generated dynamically
+
+  const handleStartPlanning = () => {
+    if (onStartDiscussion) {
+      onStartDiscussion();
+    }
+  };
 
   return (
-    <div className="App">
-      <nav>
-        <button
-          onClick={() => setActiveTab("healthsummary")}
-          style={{
-            fontWeight: activeTab === "healthsummary" ? "bold" : "normal",
-          }}
-        >
-          Health Summary
-        </button>
-        <button
-          onClick={() => setActiveTab("chat")}
-          style={{ fontWeight: activeTab === "chat" ? "bold" : "normal" }}
-        >
-          Chat
-        </button>
-        <button
-          onClick={() => setActiveTab("healthplan")}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: activeTab === "healthplan" ? "#3498db" : "#ecf0f1",
-            color: activeTab === "healthplan" ? "white" : "#2c3e50",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-            fontWeight: "500",
-            transition: "all 0.2s ease"
-          }}
-        >
-          Health Plan
-        </button>
-      </nav>
+    <div style={{
+      backgroundColor: "white",
+      padding: "20px",
+      borderRadius: "10px",
+      boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+      margin: "20px 0",
+      textAlign: "center"
+    }}>
+      <h2 style={{
+        color: "#2c3e50",
+        marginBottom: "15px"
+      }}>
+        Your Personalized Health Plan
+      </h2>
+      
+      <p style={{
+        color: "#7f8c8d",
+        marginBottom: "20px",
+        lineHeight: "1.6"
+      }}>
+        Based on your health assessment, we'll create a customized plan to help you achieve your wellness goals. 
+        Click below to start the interactive planning process.
+      </p>
 
-      <div style={{ display: activeTab === "healthsummary" ? "block" : "none" }}>
-        <HealthSummary setHealthScores={setHealthScores} />
-      </div>
-
-      <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
-        <ChatInterface
-          healthScores={healthScores}
-          chatMessages={chatMessages}
-          setChatMessages={setChatMessages}
-          userFacts={userFacts}
-          setUserFacts={setUserFacts}
-        />
-      </div>
-
-      <div style={{ display: activeTab === "healthplan" ? "block" : "none" }}>
-        <HealthPlanRecommendations
-          healthScores={healthScores}
-          userFacts={userFacts}
-        />
-      </div>
+      <button
+        onClick={handleStartPlanning}
+        style={{
+          backgroundColor: "#3498db",
+          color: "white",
+          border: "none",
+          padding: "15px 30px",
+          borderRadius: "8px",
+          fontSize: "16px",
+          fontWeight: "600",
+          cursor: "pointer",
+          transition: "background-color 0.3s ease"
+        }}
+        onMouseOver={(e) => e.target.style.backgroundColor = "#2980b9"}
+        onMouseOut={(e) => e.target.style.backgroundColor = "#3498db"}
+      >
+        Start Plan Discussion
+      </button>
     </div>
   );
-}
+};
+
+export default HealthPlan;

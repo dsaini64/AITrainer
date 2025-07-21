@@ -1,198 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 
-export default function HealthPlanRecommendations({ healthScores, userFacts }) {
+export default function HealthPlanRecommendations({ scores, data, onPlanGenerated }) {
   const [recommendations, setRecommendations] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Generate recommendations based on health data
-  const generateRecommendations = async () => {
-    if (!healthScores) {
-      return;
-    }
-
-    setLoading(true);
+  const generateRecommendations = useCallback(async () => {
+    if (!scores && !data) return;
+    
+    setIsLoading(true);
     try {
-      // For now, we'll generate recommendations on the frontend
-      // Later this could be moved to the backend AI service
-      const plan = createPersonalizedPlan(healthScores, userFacts);
-      setRecommendations(plan);
+      const response = await fetch('/generate-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          user_id: 'testuser', 
+          scores: scores || {}
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setRecommendations(result);
+      
+      if (onPlanGenerated) {
+        onPlanGenerated(result);
+      }
     } catch (error) {
       console.error('Error generating recommendations:', error);
+      // Provide fallback recommendations if API fails
+      const fallbackRecommendations = {
+        estimated_timeline_weeks: 6,
+        focus_areas: ["Physical Health", "Nutrition", "Sleep & Recovery"],
+        suggested_habits: [
+          "Stretch every morning",
+          "Eat one extra vegetable",
+          "Sleep 7+ hours"
+        ],
+        assigned_task: "Stretch every morning for 5 minutes",
+        current_focus_area: "Physical Health",
+        difficulty: 1,
+        consecutive_days: 0,
+        missed_days_in_row: 0
+      };
+      setRecommendations(fallbackRecommendations);
+      
+      if (onPlanGenerated) {
+        onPlanGenerated(fallbackRecommendations);
+      }
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  };
-
-  // Create personalized health plan based on user data
-  const createPersonalizedPlan = (scores, facts = []) => {
-    const age = scores.Age || 25;
-    const vo2Max = scores['VO2 Max'] || 30;
-    const heartRate = scores['Heart Rate'] || 70;
-    const sleep = scores.Sleep || 7;
-    const weakestArea = scores['Weakest Area'] || 'Nutrition';
-    const preferredActivity = scores['Preferred Activity'] || 'Running';
-
-    // Analyze health metrics
-    const analysis = {
-      fitnessLevel: vo2Max < 25 ? 'Beginner' : vo2Max < 40 ? 'Intermediate' : 'Advanced',
-      heartRateZone: heartRate < 60 ? 'Low' : heartRate < 100 ? 'Normal' : 'High',
-      sleepQuality: sleep < 6 ? 'Poor' : sleep < 8 ? 'Adequate' : 'Excellent',
-      ageGroup: age < 30 ? 'Young Adult' : age < 50 ? 'Adult' : 'Mature Adult'
-    };
-
-    return {
-      overview: {
-        title: "Your Personalized Health Plan",
-        summary: `Based on your health profile (${analysis.ageGroup}, ${analysis.fitnessLevel} fitness level), 
-                 we've created a comprehensive plan focusing on your weakest area: ${weakestArea}.`
-      },
-      exercise: generateExerciseRecommendations(analysis, preferredActivity, vo2Max),
-      nutrition: generateNutritionRecommendations(analysis, weakestArea),
-      sleep: generateSleepRecommendations(analysis, sleep),
-      wellness: generateWellnessRecommendations(analysis, heartRate),
-      goals: generateGoals(analysis, scores)
-    };
-  };
-
-  const generateExerciseRecommendations = (analysis, preferredActivity, vo2Max) => {
-    const baseRecommendations = {
-      title: "Exercise Recommendations",
-      primary: `Focus on ${preferredActivity.toLowerCase()} as your preferred activity`,
-      recommendations: []
-    };
-
-    if (analysis.fitnessLevel === 'Beginner') {
-      baseRecommendations.recommendations = [
-        "Start with 20-30 minutes of moderate activity 3x per week",
-        "Include basic strength training 2x per week",
-        "Focus on building endurance gradually",
-        "Try bodyweight exercises like squats, push-ups, and planks"
-      ];
-    } else if (analysis.fitnessLevel === 'Intermediate') {
-      baseRecommendations.recommendations = [
-        "Aim for 45-60 minutes of activity 4-5x per week",
-        "Mix cardio and strength training",
-        "Include high-intensity interval training (HIIT) 1-2x per week",
-        "Try advanced variations of your preferred activity"
-      ];
-    } else {
-      baseRecommendations.recommendations = [
-        "Maintain 60+ minutes of varied activity 5-6x per week",
-        "Focus on performance optimization and recovery",
-        "Include sport-specific training",
-        "Consider training periodization"
-      ];
-    }
-
-    return baseRecommendations;
-  };
-
-  const generateNutritionRecommendations = (analysis, weakestArea) => {
-    const baseNutrition = {
-      title: "Nutrition Recommendations",
-      focus: weakestArea === 'Nutrition' ? "Priority Focus Area" : "Supporting Your Fitness Goals"
-    };
-
-    if (weakestArea === 'Nutrition') {
-      baseNutrition.recommendations = [
-        "Track your daily caloric intake for 1 week to establish baseline",
-        "Eat protein with every meal (aim for 0.8-1g per kg body weight)",
-        "Include 5-7 servings of fruits and vegetables daily",
-        "Stay hydrated with 8-10 glasses of water per day",
-        "Plan and prep meals ahead of time",
-        "Limit processed foods and added sugars"
-      ];
-    } else {
-      baseNutrition.recommendations = [
-        "Maintain balanced meals with protein, carbs, and healthy fats",
-        "Eat within 30 minutes post-workout for recovery",
-        "Stay consistent with meal timing",
-        "Include anti-inflammatory foods like berries and leafy greens"
-      ];
-    }
-
-    return baseNutrition;
-  };
-
-  const generateSleepRecommendations = (analysis, currentSleep) => {
-    const recommendations = {
-      title: "Sleep Optimization",
-      current: `Currently getting ${currentSleep} hours per night`,
-      recommendations: []
-    };
-
-    if (analysis.sleepQuality === 'Poor') {
-      recommendations.recommendations = [
-        "Prioritize getting 7-9 hours of sleep nightly",
-        "Establish a consistent bedtime routine",
-        "Avoid screens 1 hour before bed",
-        "Keep your bedroom cool (65-68°F) and dark",
-        "Limit caffeine after 2 PM",
-        "Consider relaxation techniques like meditation"
-      ];
-    } else if (analysis.sleepQuality === 'Adequate') {
-      recommendations.recommendations = [
-        "Aim to optimize sleep quality with consistent timing",
-        "Create a relaxing bedtime environment",
-        "Consider adding 30 minutes to your current sleep schedule"
-      ];
-    } else {
-      recommendations.recommendations = [
-        "Maintain your excellent sleep habits",
-        "Continue with consistent sleep schedule",
-        "Focus on sleep quality over quantity"
-      ];
-    }
-
-    return recommendations;
-  };
-
-  const generateWellnessRecommendations = (analysis, heartRate) => {
-    return {
-      title: "Wellness & Recovery",
-      heartRateNote: `Resting HR: ${heartRate} bpm (${analysis.heartRateZone})`,
-      recommendations: [
-        "Practice stress management techniques daily",
-        "Include 10-15 minutes of stretching or yoga",
-        "Take rest days between intense workouts",
-        "Monitor your heart rate variability",
-        "Consider meditation or mindfulness practices",
-        "Schedule regular health check-ups"
-      ]
-    };
-  };
-
-  const generateGoals = (analysis, scores) => {
-    const goals = {
-      title: "30-Day Goals",
-      goals: []
-    };
-
-    // Generate specific goals based on current metrics
-    if (scores['VO2 Max'] < 35) {
-      goals.goals.push("Improve cardiovascular fitness by 10%");
-    }
-    if (scores.Sleep < 7) {
-      goals.goals.push("Achieve consistent 7+ hours of sleep");
-    }
-    if (scores['Weakest Area'] === 'Nutrition') {
-      goals.goals.push("Track nutrition for 21 days");
-    }
-    
-    goals.goals.push("Complete your assigned daily tasks for 2 weeks straight");
-    goals.goals.push("Try one new healthy recipe per week");
-    goals.goals.push("Increase daily step count by 1000 steps");
-
-    return goals;
-  };
+  }, [scores, data, onPlanGenerated]);
 
   useEffect(() => {
-    if (healthScores) {
-      generateRecommendations();
-    }
-  }, [healthScores, userFacts]);
+    generateRecommendations();
+  }, [generateRecommendations]);
 
-  if (!healthScores) {
+  if (!scores) {
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
         <h3>Health Plan Recommendations</h3>
@@ -201,7 +68,7 @@ export default function HealthPlanRecommendations({ healthScores, userFacts }) {
     );
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
         <h3>Generating Your Personalized Health Plan...</h3>

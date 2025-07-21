@@ -14,7 +14,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("summary");
   const [chatMessages, setChatMessages] = useState([]);
   const [healthScores, setHealthScores] = useState(null);
-  const [userFacts, setUserFacts] = useState([]);
   const [currentPlan, setCurrentPlan] = useState(null);
 
   // Generate a sample plan for demonstration
@@ -195,7 +194,7 @@ export default function App() {
         <div style={{ display: activeTab === "healthplan" ? "block" : "none" }}>
           <HealthPlanRecommendations 
             healthScores={healthScores}
-            userFacts={userFacts}
+            userFacts={[]}
           />
         </div>
 

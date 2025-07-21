@@ -27,18 +27,18 @@ export default function ChatInterface({ messages, setMessages }) {
   // Pre-warm the conversation thread on component mount
   useEffect(() => {
     const scores = {
-      "Age": sessionStorage.getItem("age") || "25",
-      "VO2 Max": sessionStorage.getItem("vo2") || "45",
+      "Age": parseInt(sessionStorage.getItem("age")) || 25,
+      "VO2 Max": parseInt(sessionStorage.getItem("vo2")) || 45,
       "Preferred Activity": sessionStorage.getItem("activity") || "Running",
-      "Heart Rate": sessionStorage.getItem("heartrate") || "60",
-      "Sleep": sessionStorage.getItem("sleep") || "7",
+      "Heart Rate": parseInt(sessionStorage.getItem("heartrate")) || 60,
+      "Sleep": parseInt(sessionStorage.getItem("sleep")) || 7,
       "Weakest Area": sessionStorage.getItem("focus") || "Mobility",
-      "Mobility": sessionStorage.getItem("Mobility") || "60",
-      "Endurance": sessionStorage.getItem("Endurance") || "50",
-      "Strength": sessionStorage.getItem("Strength") || "70",
-      "Nutrition": sessionStorage.getItem("Nutrition") || "55",
-      "Mindfulness": sessionStorage.getItem("Mindfulness") || "40",
-      "Sleep Score": sessionStorage.getItem("Sleep") || "65"
+      "Mobility": parseInt(sessionStorage.getItem("Mobility")) || 60,
+      "Endurance": parseInt(sessionStorage.getItem("Endurance")) || 50,
+      "Strength": parseInt(sessionStorage.getItem("Strength")) || 70,
+      "Nutrition": parseInt(sessionStorage.getItem("Nutrition")) || 55,
+      "Mindfulness": parseInt(sessionStorage.getItem("Mindfulness")) || 40,
+      "Sleep Score": parseInt(sessionStorage.getItem("Sleep")) || 65
     };
     fetch('/prepare-thread', {
       method: 'POST',
@@ -54,29 +54,36 @@ export default function ChatInterface({ messages, setMessages }) {
       .catch(err => console.error('Failed to prepare thread:', err));
   }, []);
 
-  // Listen for assistant messages via SSE
+  // Set up Server-Sent Events stream for real-time chat
   useEffect(() => {
-    // Use absolute backend URL for SSE
-    const es = new EventSource('http://localhost:5000/stream/testuser');
-    es.onmessage = e => {
-      try {
-        const incoming = JSON.parse(e.data);
-        const msg = {
-          role: incoming.role === 'assistant' ? 'bot' : incoming.role,
-          text: incoming.text
-        };
-        setMessages(prev => [...prev, msg]);
-      } catch (err) {
-        console.error('Error parsing SSE message', err);
-      }
+    const connectSSE = () => {
+      // Use relative URL instead of hardcoded localhost to work with proxy
+      const es = new EventSource('/stream/testuser');
+      
+      es.onmessage = (event) => {
+        try {
+          const messageData = JSON.parse(event.data);
+          setMessages(prev => [...prev, { 
+            role: 'bot', 
+            text: messageData.content || messageData.text || event.data 
+          }]);
+        } catch (err) {
+          console.error('Error parsing SSE message', err);
+        }
+      };
+      
+      es.onerror = (err) => {
+        console.error('SSE connection error:', err);
+        es.close();
+        // Try to reconnect after 5 seconds
+        setTimeout(connectSSE, 5000);
+      };
+      
+      return es;
     };
-    es.onerror = err => {
-      console.error('SSE connection error:', err);
-      es.close();
-    };
-    return () => {
-      es.close();
-    };
+
+    const eventSource = connectSSE();
+    return () => eventSource.close();
   }, [setMessages]);
 
   const categoryScores = {
@@ -115,18 +122,18 @@ export default function ChatInterface({ messages, setMessages }) {
 
     // Build the scores object with all health-related scores from sessionStorage (all 12 fields)
     const scoresForHealth = {
-      "Age": sessionStorage.getItem("age") || "25",
-      "VO2 Max": sessionStorage.getItem("vo2") || "4",
+      "Age": parseInt(sessionStorage.getItem("age")) || 25,
+      "VO2 Max": parseInt(sessionStorage.getItem("vo2")) || 4,
       "Preferred Activity": sessionStorage.getItem("activity") || "Running",
-      "Heart Rate": sessionStorage.getItem("heartrate") || "6",
-      "Sleep": sessionStorage.getItem("sleep") || "7",
+      "Heart Rate": parseInt(sessionStorage.getItem("heartrate")) || 6,
+      "Sleep": parseInt(sessionStorage.getItem("sleep")) || 7,
       "Weakest Area": sessionStorage.getItem("focus") || "Mobility",
-      "Mobility": sessionStorage.getItem("Mobility") || "6",
-      "Endurance": sessionStorage.getItem("Endurance") || "5",
-      "Strength": sessionStorage.getItem("Strength") || "70",
-      "Nutrition": sessionStorage.getItem("Nutrition") || "5",
-      "Mindfulness": sessionStorage.getItem("Mindfulness") || "4",
-      "Sleep Score": sessionStorage.getItem("Sleep") || "6"
+      "Mobility": parseInt(sessionStorage.getItem("Mobility")) || 6,
+      "Endurance": parseInt(sessionStorage.getItem("Endurance")) || 5,
+      "Strength": parseInt(sessionStorage.getItem("Strength")) || 70,
+      "Nutrition": parseInt(sessionStorage.getItem("Nutrition")) || 5,
+      "Mindfulness": parseInt(sessionStorage.getItem("Mindfulness")) || 4,
+      "Sleep Score": parseInt(sessionStorage.getItem("Sleep")) || 6
     };
     // Convert the scores object to a string for health_data
     const health_data = Object.entries(scoresForHealth)

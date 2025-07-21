@@ -1,81 +1,72 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
-export default function PlanDiscussion({ initialPlan, onPlanUpdated, healthScores }) {
-  const [messages, setMessages] = useState([]);
-  const [query, setQuery] = useState('');
+export default function PlanDiscussion({ plan, onPlanUpdated, messages, setMessages }) {
+  const [currentStage, setCurrentStage] = useState('exploration');
+  const [concerns, setConcerns] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [threadId, setThreadId] = useState(null);
-  const [currentPlan, setCurrentPlan] = useState(initialPlan);
-  const [discussionStage, setDiscussionStage] = useState('introduction'); // introduction, exploration, concerns, refinement, finalization
-  const [userConcerns, setUserConcerns] = useState([]);
-  const [additionalInfo, setAdditionalInfo] = useState({});
-  const [planModifications, setPlanModifications] = useState([]);
-  
-  const chatContainerRef = useRef(null);
+  const [userInput, setUserInput] = useState('');
 
-  // Discussion flow stages and prompts
-  const stagePrompts = {
-    introduction: "Let me walk you through your personalized plan. I'll explain each part and would love to hear your thoughts!",
-    exploration: "Now that you've seen the plan, what questions do you have? Is there anything that seems unclear or concerning?",
-    concerns: "I understand your concerns. Let's work through them together and see how we can adjust the plan to work better for you.",
-    refinement: "Based on our discussion, I'd like to suggest some modifications. What do you think about these changes?",
-    finalization: "Great! Let's finalize your plan. Are you comfortable with everything we've discussed?"
-  };
+  // Initialize plan discussion when component mounts or plan changes
+  const initializePlanDiscussion = useCallback(async () => {
+    if (!plan) return;
 
-  // Initialize conversation with plan introduction
-  useEffect(() => {
-    if (initialPlan && !messages.length) {
-      initializePlanDiscussion();
-    }
-  }, [initialPlan]);
-
-  const initializePlanDiscussion = async () => {
     setIsLoading(true);
-    
     try {
-      // Prepare thread for plan discussion
-      const prepRes = await fetch('/prepare-plan-discussion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          user_id: 'testuser', 
-          plan: currentPlan,
-          health_data: healthScores 
-        })
-      });
-      const prepData = await prepRes.json();
-      setThreadId(prepData.thread_id);
-
-      // Get initial plan presentation
-      const response = await fetch('/start-plan-discussion', {
+      const response = await fetch('/initialize-plan-discussion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          thread_id: prepData.thread_id,
-          plan: currentPlan,
-          stage: 'introduction'
-        })
+          user_id: 'testuser',
+          plan: plan,
+          stage: 'exploration'
+        }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      setMessages([{ role: 'bot', text: data.message }]);
-      setDiscussionStage('exploration');
       
+      if (data.thread_id) {
+        setThreadId(data.thread_id);
+      }
+      
+      // Add initial AI message
+      if (data.message) {
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: data.message,
+          timestamp: new Date().toISOString()
+        }]);
+      }
     } catch (error) {
       console.error('Failed to initialize plan discussion:', error);
-      setMessages([{ role: 'bot', text: 'Sorry, I encountered an error starting our plan discussion. Let me try again.' }]);
+      // Provide fallback initialization
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: "I'd love to discuss your personalized health plan with you! Let's start by talking about what aspects you're most excited about or have questions about.",
+        timestamp: new Date().toISOString()
+      }]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [plan, setMessages]);
+
+  useEffect(() => {
+    if (plan && messages.length === 0) {
+      initializePlanDiscussion();
+    }
+  }, [plan, messages.length, initializePlanDiscussion]);
 
   const handleSend = async () => {
-    const message = query.trim();
+    const message = userInput.trim();
     if (!message || isLoading) return;
 
     setIsLoading(true);
-    setMessages(prev => [...prev, { role: 'user', text: message }]);
-    setQuery('');
+    setMessages(prev => [...prev, { role: 'user', content: message, timestamp: new Date().toISOString() }]);
+    setUserInput('');
 
     try {
       const response = await fetch('/discuss-plan', {
@@ -84,41 +75,44 @@ export default function PlanDiscussion({ initialPlan, onPlanUpdated, healthScore
         body: JSON.stringify({
           thread_id: threadId,
           message: message,
-          current_stage: discussionStage,
-          plan: currentPlan,
-          concerns: userConcerns,
-          additional_info: additionalInfo
+          current_stage: currentStage,
+          plan: plan,
+          concerns: concerns,
+          // additional_info: additionalInfo // This was removed from state, so it's removed here
         })
       });
 
       const data = await response.json();
       
-      setMessages(prev => [...prev, { role: 'bot', text: data.message }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: data.message, timestamp: new Date().toISOString() }]);
       
       // Update discussion state based on response
-      if (data.stage) setDiscussionStage(data.stage);
-      if (data.concerns) setUserConcerns(prev => [...prev, ...data.concerns]);
-      if (data.additional_info) setAdditionalInfo(prev => ({ ...prev, ...data.additional_info }));
-      if (data.plan_modifications) setPlanModifications(prev => [...prev, ...data.plan_modifications]);
+      if (data.stage) setCurrentStage(data.stage);
+      if (data.concerns) setConcerns(prev => [...prev, ...data.concerns]);
+      // if (data.additional_info) setAdditionalInfo(prev => ({ ...prev, ...data.additional_info })); // This was removed from state, so it's removed here
+      if (data.plan_modifications) {
+        // setPlanModifications(prev => [...prev, ...data.plan_modifications]); // This was removed from state, so it's removed here
+        // If planModifications were state, they would be updated here.
+      }
       if (data.updated_plan) {
-        setCurrentPlan(data.updated_plan);
+        // setCurrentPlan(data.updated_plan); // This was removed from state, so it's removed here
         if (onPlanUpdated) onPlanUpdated(data.updated_plan);
       }
 
     } catch (error) {
       console.error('Error in plan discussion:', error);
-      setMessages(prev => [...prev, { role: 'bot', text: 'I encountered an error. Could you please repeat that?' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'I encountered an error. Could you please repeat that?', timestamp: new Date().toISOString() }]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleQuickResponse = (response) => {
-    setQuery(response);
+    setUserInput(response);
   };
 
   const getQuickResponses = () => {
-    switch (discussionStage) {
+    switch (currentStage) {
       case 'exploration':
         return [
           "This looks good overall",
@@ -158,8 +152,11 @@ export default function PlanDiscussion({ initialPlan, onPlanUpdated, healthScore
   };
 
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    if (messages.length > 0) {
+      const chatContainer = document.querySelector('.chat-messages');
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
     }
   }, [messages]);
 
@@ -168,7 +165,7 @@ export default function PlanDiscussion({ initialPlan, onPlanUpdated, healthScore
       <div className="discussion-header">
         <h2>Plan Discussion</h2>
         <div className="discussion-stage">
-          Stage: <span className="stage-indicator">{discussionStage}</span>
+          Stage: <span className="stage-indicator">{currentStage}</span>
         </div>
       </div>
 
@@ -177,34 +174,34 @@ export default function PlanDiscussion({ initialPlan, onPlanUpdated, healthScore
         <div className="plan-summary-panel">
           <h3>Current Plan</h3>
           <div className="plan-items">
-            {currentPlan && typeof currentPlan === 'object' ? (
-              Object.entries(currentPlan).map(([key, value]) => (
+            {plan && typeof plan === 'object' ? (
+              Object.entries(plan).map(([key, value]) => (
                 <div key={key} className="plan-item">
                   <strong>{key}:</strong> {Array.isArray(value) ? value.join(', ') : value}
                 </div>
               ))
             ) : (
-              <div className="plan-item">{currentPlan || 'No plan loaded'}</div>
+              <div className="plan-item">{plan || 'No plan loaded'}</div>
             )}
           </div>
           
-          {planModifications.length > 0 && (
+          {/* {planModifications.length > 0 && ( // This was removed from state, so it's removed here
             <div className="plan-modifications">
               <h4>Suggested Modifications:</h4>
               {planModifications.map((mod, i) => (
                 <div key={i} className="modification-item">• {mod}</div>
               ))}
             </div>
-          )}
+          )} */}
         </div>
 
         {/* Chat Area */}
         <div className="chat-area">
-          <div className="chat-messages" ref={chatContainerRef}>
+          <div className="chat-messages">
             {messages.map((msg, i) => (
               <div key={i} className={`message-row ${msg.role}`}>
                 <div className="message-bubble">
-                  {msg.text}
+                  {msg.content}
                 </div>
               </div>
             ))}
@@ -241,8 +238,8 @@ export default function PlanDiscussion({ initialPlan, onPlanUpdated, healthScore
           <div className="chat-input-row">
             <input
               type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -256,7 +253,7 @@ export default function PlanDiscussion({ initialPlan, onPlanUpdated, healthScore
             <button
               className="send-button"
               onClick={handleSend}
-              disabled={isLoading || !query.trim()}
+              disabled={isLoading || !userInput.trim()}
             >
               Send
             </button>
@@ -270,8 +267,8 @@ export default function PlanDiscussion({ initialPlan, onPlanUpdated, healthScore
           {['introduction', 'exploration', 'concerns', 'refinement', 'finalization'].map((stage, i) => (
             <div 
               key={stage} 
-              className={`progress-step ${discussionStage === stage ? 'active' : ''} ${
-                ['introduction', 'exploration', 'concerns', 'refinement', 'finalization'].indexOf(discussionStage) > i ? 'completed' : ''
+              className={`progress-step ${currentStage === stage ? 'active' : ''} ${
+                ['introduction', 'exploration', 'concerns', 'refinement', 'finalization'].indexOf(currentStage) > i ? 'completed' : ''
               }`}
             >
               {stage.charAt(0).toUpperCase() + stage.slice(1)}

@@ -52,7 +52,7 @@ export default function FeedbackPanel({ recommendationData }) {
         if (status === "miss" && assignedTask) {
           try {
             setFeedback("No worries. Let's try something to get back on track today. Your streak has reset.");
-            const resp = await fetch("http://localhost:5000/api/new-daily-task", {
+            const resp = await fetch("/api/new-daily-task", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ previousTask: assignedTask }),
