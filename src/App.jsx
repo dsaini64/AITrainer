@@ -182,8 +182,8 @@ export default function App() {
           </div>
         )}
         
-        {activeTab === "chat" && (
-          <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
+        {activeTab === "longevity" && (
+          <div>
             <ChatInterface 
               messages={chatMessages} 
               setMessages={setChatMessages}
@@ -191,12 +191,14 @@ export default function App() {
           </div>
         )}
 
-        <div style={{ display: activeTab === "healthplan" ? "block" : "none" }}>
-          <HealthPlanRecommendations 
-            healthScores={healthScores}
-            userFacts={[]}
-          />
-        </div>
+        {activeTab === "healthplan" && (
+          <div>
+            <HealthPlanRecommendations 
+              scores={healthScores}
+              userFacts={[]}
+            />
+          </div>
+        )}
 
         {activeTab === "plan-discussion" && (
           <div>
@@ -227,9 +229,10 @@ export default function App() {
               </div>
             ) : (
               <PlanDiscussion 
-                initialPlan={currentPlan}
+                plan={currentPlan}
                 onPlanUpdated={handlePlanUpdated}
-                healthScores={healthScores}
+                messages={chatMessages}
+                setMessages={setChatMessages}
               />
             )}
           </div>
