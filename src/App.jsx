@@ -3,18 +3,17 @@ import ScoreForm from "./ScoreForm";
 import FeedbackPanel from "./FeedbackPanel";
 import LongevityTip from "./LongevityTip";
 import ChatInterface from "./ChatInterface";
-
 import PlanDiscussion from "./PlanDiscussion";
-
 import HealthPlanRecommendations from "./HealthPlanRecommendations";
-
+import "./App.css";
 
 export default function App() {
   const [recommendationData, setRecommendationData] = useState(null);
-  const [activeTab, setActiveTab] = useState("summary");
+  const [activeTab, setActiveTab] = useState("health-summary");
   const [chatMessages, setChatMessages] = useState([]);
   const [healthScores, setHealthScores] = useState(null);
   const [currentPlan, setCurrentPlan] = useState(null);
+  const [userGoals, setUserGoals] = useState([]);
 
   // Generate a sample plan for demonstration
   const generateSamplePlan = () => {
@@ -55,187 +54,254 @@ export default function App() {
         textAlign: "center"
       }}>
         <h1 style={{
-          fontSize: "2rem",
+          fontSize: "2.5rem",
           margin: 0,
           textAlign: "center",
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          background: "linear-gradient(135deg, #2ecc71 0%, #27ae60 50%, #16a085 100%)",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
-          marginBottom: "1rem",
+          marginBottom: "0.5rem",
         }}>
-          AI Health Trainer
+          🌱 Longevity Coach
         </h1>
+        <p style={{
+          fontSize: "1.1rem",
+          color: "#2c3e50",
+          marginBottom: "2rem",
+          fontWeight: "300"
+        }}>
+          Your personal guide to healthy habits that increase longevity
+        </p>
 
 
         {/* Tab Navigation */}
         <div style={{
           display: "flex",
           justifyContent: "center",
-          gap: "10px",
-          marginBottom: "20px",
+          gap: "15px",
+          marginBottom: "30px",
           flexWrap: "wrap"
         }}>
-
-        <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
-
           <button
-            onClick={() => setActiveTab("summary")}
+            onClick={() => setActiveTab("health-summary")}
             style={{
-              padding: "10px 20px",
-              backgroundColor: activeTab === "summary" ? "#3498db" : "#ecf0f1",
-              color: activeTab === "summary" ? "white" : "#2c3e50",
-              border: "none",
-              borderRadius: "5px",
+              padding: "15px 25px",
+              backgroundColor: activeTab === "health-summary" ? "#27ae60" : "#ecf0f1",
+              color: activeTab === "health-summary" ? "white" : "#2c3e50",
+              border: activeTab === "health-summary" ? "2px solid #27ae60" : "2px solid transparent",
+              borderRadius: "12px",
               cursor: "pointer",
-              fontWeight: "500",
-              transition: "all 0.2s ease"
+              fontWeight: "600",
+              fontSize: "1rem",
+              transition: "all 0.3s ease",
+              boxShadow: activeTab === "health-summary" ? "0 4px 12px rgba(39, 174, 96, 0.3)" : "0 2px 8px rgba(0,0,0,0.1)",
+              transform: activeTab === "health-summary" ? "translateY(-2px)" : "none"
             }}
           >
-            Health Assessment
+            📊 Health Summary
           </button>
           <button
-            onClick={() => setActiveTab("healthplan")}
+            onClick={() => setActiveTab("assessment")}
             style={{
-              padding: "10px 20px",
-              backgroundColor: activeTab === "healthplan" ? "#3498db" : "#ecf0f1",
-              color: activeTab === "healthplan" ? "white" : "#2c3e50",
-              border: "none",
-              borderRadius: "5px",
+              padding: "15px 25px",
+              backgroundColor: activeTab === "assessment" ? "#e74c3c" : "#ecf0f1",
+              color: activeTab === "assessment" ? "white" : "#2c3e50",
+              border: activeTab === "assessment" ? "2px solid #e74c3c" : "2px solid transparent",
+              borderRadius: "12px",
               cursor: "pointer",
-              fontWeight: "500",
-              transition: "all 0.2s ease"
+              fontWeight: "600",
+              fontSize: "1rem",
+              transition: "all 0.3s ease",
+              boxShadow: activeTab === "assessment" ? "0 4px 12px rgba(231, 76, 60, 0.3)" : "0 2px 8px rgba(0,0,0,0.1)",
+              transform: activeTab === "assessment" ? "translateY(-2px)" : "none"
             }}
           >
-            Health Plan
+            🔬 Assessment
           </button>
           <button
-            className={`special-button ${activeTab === "longevity" ? "active" : ""}`}
-            onClick={() => setActiveTab("longevity")}
-          >
-            Health Chat
-          </button>
-          <button
-            onClick={() => setActiveTab("plan-discussion")}
+            onClick={() => setActiveTab("interactive-helper")}
             style={{
-              padding: "10px 20px",
-              backgroundColor: activeTab === "plan-discussion" ? "#3498db" : "#ecf0f1",
-              color: activeTab === "plan-discussion" ? "white" : "#2c3e50",
-              border: "none",
-              borderRadius: "5px",
+              padding: "15px 25px",
+              backgroundColor: activeTab === "interactive-helper" ? "#3498db" : "#ecf0f1",
+              color: activeTab === "interactive-helper" ? "white" : "#2c3e50",
+              border: activeTab === "interactive-helper" ? "2px solid #3498db" : "2px solid transparent",
+              borderRadius: "12px",
               cursor: "pointer",
-              fontWeight: "500",
-              transition: "all 0.2s ease"
+              fontWeight: "600",
+              fontSize: "1rem",
+              transition: "all 0.3s ease",
+              boxShadow: activeTab === "interactive-helper" ? "0 4px 12px rgba(52, 152, 219, 0.3)" : "0 2px 8px rgba(0,0,0,0.1)",
+              transform: activeTab === "interactive-helper" ? "translateY(-2px)" : "none"
             }}
           >
-            Plan Discussion
+            🤖 Interactive Helper
           </button>
-          <button
-            onClick={() => setActiveTab("tip")}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: activeTab === "tip" ? "#3498db" : "#ecf0f1",
-              color: activeTab === "tip" ? "white" : "#2c3e50",
-              border: "none",
-              borderRadius: "5px",
-              cursor: "pointer",
-              fontWeight: "500",
-              transition: "all 0.2s ease"
-            }}
-          >
-            Daily Tip
-          </button>
-        </div>
         </div>
 
         {/* Tab Content */}
-        {activeTab === "summary" && (
-          <div>
+        {activeTab === "health-summary" && (
+          <div style={{
+            background: "linear-gradient(135deg, #f8fffe 0%, #e8f8f5 100%)",
+            padding: "30px",
+            borderRadius: "20px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
+            marginBottom: "20px"
+          }}>
+            <h2 style={{
+              color: "#27ae60",
+              marginBottom: "20px",
+              fontSize: "1.8rem",
+              textAlign: "center"
+            }}>
+              📊 Your Health Summary
+            </h2>
+            {healthScores ? (
+              <div>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: "20px",
+                  marginBottom: "25px"
+                }}>
+                  {Object.entries(healthScores).map(([key, value]) => (
+                    <div key={key} style={{
+                      background: "white",
+                      padding: "20px",
+                      borderRadius: "15px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                      textAlign: "center",
+                      border: "2px solid #e8f8f5"
+                    }}>
+                      <h4 style={{ color: "#2c3e50", marginBottom: "10px" }}>{key}</h4>
+                      <p style={{ 
+                        fontSize: "1.5rem", 
+                        fontWeight: "bold", 
+                        color: "#27ae60",
+                        margin: 0 
+                      }}>
+                        {typeof value === 'number' ? value : value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                {recommendationData && (
+                  <div style={{ marginTop: "25px" }}>
+                    <h3 style={{ color: "#2c3e50", marginBottom: "15px" }}>
+                      🎯 Your Personalized Health Insights
+                    </h3>
+                    <FeedbackPanel recommendationData={recommendationData} />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                textAlign: "center",
+                padding: "40px",
+                color: "#7f8c8d"
+              }}>
+                <p style={{ fontSize: "1.2rem", marginBottom: "20px" }}>
+                  Complete your health assessment to see your personalized summary
+                </p>
+                <button
+                  onClick={() => setActiveTab("assessment")}
+                  style={{
+                    padding: "15px 30px",
+                    backgroundColor: "#e74c3c",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    fontSize: "1.1rem",
+                    fontWeight: "600",
+                    transition: "all 0.3s ease"
+                  }}
+                >
+                  Take Assessment Now →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "assessment" && (
+          <div style={{
+            background: "linear-gradient(135deg, #fef9e7 0%, #fcf3cf 100%)",
+            padding: "30px",
+            borderRadius: "20px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
+            marginBottom: "20px"
+          }}>
+            <h2 style={{
+              color: "#e74c3c",
+              marginBottom: "20px",
+              fontSize: "1.8rem",
+              textAlign: "center"
+            }}>
+              🔬 Health Assessment & Recommendations
+            </h2>
             <ScoreForm
               onRecommendation={setRecommendationData}
               onScoreSubmit={setHealthScores}
             />
-            {recommendationData && (
-              <div style={{ marginTop: "20px" }}>
-                <FeedbackPanel recommendationData={recommendationData} />
-                <div style={{ marginTop: "15px" }}>
-                  <button
-                    onClick={startPlanDiscussion}
-                    style={{
-                      padding: "12px 24px",
-                      backgroundColor: "#27ae60",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                      fontSize: "1rem",
-                      fontWeight: "500",
-                      transition: "all 0.2s ease"
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = "#229954"}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = "#27ae60"}
-                  >
-                    💬 Discuss This Plan
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {activeTab === "chat" && (
-          <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
-            <ChatInterface 
-              messages={chatMessages} 
-              setMessages={setChatMessages}
-            />
-          </div>
-        )}
-
-        <div style={{ display: activeTab === "healthplan" ? "block" : "none" }}>
-          <HealthPlanRecommendations 
-            healthScores={healthScores}
-            userFacts={[]}
-          />
-        </div>
-
-        {activeTab === "plan-discussion" && (
-          <div>
-            {!currentPlan ? (
-              <div style={{
-                background: "#f8f9fa",
-                padding: "40px",
-                borderRadius: "10px",
-                textAlign: "center"
-              }}>
-                <h3>No Plan Available</h3>
-                <p>Please complete your health assessment first to generate a personalized plan for discussion.</p>
-                <button
-                  onClick={() => setActiveTab("summary")}
-                  style={{
-                    padding: "12px 24px",
-                    backgroundColor: "#3498db",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontSize: "1rem",
-                    fontWeight: "500"
-                  }}
-                >
-                  Go to Health Assessment
-                </button>
-              </div>
-            ) : (
-              <PlanDiscussion 
-                initialPlan={currentPlan}
-                onPlanUpdated={handlePlanUpdated}
+            <div style={{ marginTop: "30px" }}>
+              <HealthPlanRecommendations 
                 healthScores={healthScores}
+                userFacts={[]}
               />
-            )}
+            </div>
           </div>
         )}
 
-        {activeTab === "tip" && <LongevityTip />}
+        {activeTab === "interactive-helper" && (
+          <div style={{
+            background: "linear-gradient(135deg, #ebf3fd 0%, #d6eafc 100%)",
+            padding: "30px",
+            borderRadius: "20px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
+            marginBottom: "20px"
+          }}>
+            <h2 style={{
+              color: "#3498db",
+              marginBottom: "20px",
+              fontSize: "1.8rem",
+              textAlign: "center"
+            }}>
+              🤖 Your Interactive Longevity Coach
+            </h2>
+            <div style={{
+              background: "white",
+              borderRadius: "15px",
+              padding: "20px",
+              marginBottom: "20px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+            }}>
+              <ChatInterface 
+                messages={chatMessages} 
+                setMessages={setChatMessages}
+              />
+            </div>
+            {currentPlan && (
+              <div style={{
+                background: "white",
+                borderRadius: "15px",
+                padding: "20px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+              }}>
+                <h3 style={{ color: "#2c3e50", marginBottom: "15px" }}>
+                  🎯 Goal Setting & Progress Tracking
+                </h3>
+                <PlanDiscussion 
+                  initialPlan={currentPlan}
+                  onPlanUpdated={handlePlanUpdated}
+                  healthScores={healthScores}
+                />
+              </div>
+            )}
+            <div style={{ marginTop: "20px", textAlign: "center" }}>
+              <LongevityTip />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
