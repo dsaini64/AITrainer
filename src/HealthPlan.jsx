@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
 
+const API = 'http://localhost:5000';
+
 export default function HealthPlan({ healthScores }) {
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!healthScores) return;
-
     const fetchPlan = async () => {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch('/generate-plan', {
+        const res = await fetch(`${API}/generate-plan`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             user_id: 'testuser',
-            health_data: JSON.stringify(healthScores),
+            scores: healthScores || {},
           }),
         });
         if (!res.ok) {
@@ -36,33 +36,36 @@ export default function HealthPlan({ healthScores }) {
     fetchPlan();
   }, [healthScores]);
 
-  if (!healthScores) {
-    return <p>Please submit your health scores first on the “Health Summary” tab.</p>;
-  }
   if (loading) {
-    return <p>Loading health plan…</p>;
+    return <p>Generating suggestions…</p>;
   }
   if (error) {
     return <p style={{ color: 'red' }}>{error}</p>;
   }
   if (!plan) {
-    return null;
+    return <p>Preparing your suggestions…</p>;
   }
+
+  // Note: Automatic goal addition removed to prevent infinite loops
+  // Users can manually add goals from the Goals tab
 
   return (
     <div>
       <h2>Recommended 6-Week Health Plan</h2>
       <p><strong>Estimated Timeline:</strong> {plan.estimated_timeline_weeks} weeks</p>
-      <p><strong>Focus Areas:</strong> {plan.focus_areas.join(', ')}</p>
+      <p><strong>Focus Areas:</strong> {(Array.isArray(plan.focus_areas) ? plan.focus_areas.join(', ') : 'Personalized focus coming up')}</p>
       <p><strong>Suggested Habits:</strong></p>
       <ul>
-        {plan.suggested_habits.map((h, i) => <li key={i}>{h}</li>)}
+        {(Array.isArray(plan.suggested_habits) ? plan.suggested_habits : []).map((h, i) => (
+          <li key={i} style={{ marginBottom: 4 }}>
+            {h}
+          </li>
+        ))}
       </ul>
-      <p><strong>Assigned Task:</strong> {plan.assigned_task}</p>
-      <p><strong>Current Focus Area:</strong> {plan.current_focus_area}</p>
-      <p><strong>Difficulty Level:</strong> {plan.difficulty}</p>
-      <p><strong>Consecutive Days:</strong> {plan.consecutive_days}</p>
-      <p><strong>Missed Days:</strong> {plan.missed_days_in_row}</p>
+      <p style={{ fontSize: 14, color: '#666', marginTop: 12 }}>
+        💡 <strong>Tip:</strong> These suggested habits have been added to your Goals tab as inactive goals. 
+        You can activate them by checking the boxes in the Goals tab.
+      </p>
     </div>
   );
 }

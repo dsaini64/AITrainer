@@ -12,10 +12,12 @@ export default defineConfig({
       '/generate-line': 'http://localhost:5000',
       '/facts':       'http://localhost:5000',
       '/pending':     'http://localhost:5000',
-      '/stream':      { target: 'http://localhost:5000', ws: true },
+      '/stream':      { target: 'http://localhost:5000', ws: true, changeOrigin: true },
       '/prepare-thread':   'http://localhost:5000',
       '/extract-fact':     'http://localhost:5000',
-
+      '/prefs':             'http://localhost:5000',
+      '/api':               'http://localhost:5000',
+      '/debug':             'http://localhost:5000',
     }
   }
 });

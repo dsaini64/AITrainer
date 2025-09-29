@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 
 export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
@@ -18,7 +17,7 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
   // Function to load facts from backend
   const loadFacts = async () => {
     try {
-      const res = await fetch(`/facts/testuser`);
+      const res = await fetch(`http://localhost:5000/facts/testuser`);
       const data = await res.json();
       setUserFacts(data);
     } catch (err) {
@@ -64,7 +63,7 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
       "Habits": "3",
       "Medical History": "10"
     };
-    const res = await fetch(`/generate-plan`, {
+    const res = await fetch(`http://localhost:5000/generate-plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: "testuser", scores: mergedScores }),
@@ -79,6 +78,7 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
     sessionStorage.setItem('activity', mergedScores["Preferred Activity"]);
     sessionStorage.setItem('heartrate', mergedScores["Heart Rate"]);
     sessionStorage.setItem('sleep', mergedScores["Sleep"]);
+    sessionStorage.setItem('focus', mergedScores["Weakest Area"]);
   };
 
   const handleClear = () => {
@@ -97,7 +97,7 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
   // Helper to add a fact (calls backend)
   const addFact = async (fact) => {
     try {
-      await fetch(`/facts`, {
+      await fetch(`http://localhost:5000/facts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: 'testuser', fact }),
@@ -160,14 +160,103 @@ export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
               </ul>
             </div>
           </div>
-        </div>
-        <div style={{ marginTop: "15px" }}>
-          {!sessionStorage.getItem("healthScores") && (
-            <button type="submit" style={{ marginRight: "10px" }}>Get My Recommendations</button>
-          )}
-          {sessionStorage.getItem("healthScores") && (
-            <button type="button" onClick={handleClear}>Clear</button>
-          )}
+          
+          {/* Form Inputs */}
+          <div style={{ marginTop: '20px', padding: '20px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+            <h3 style={{ marginTop: 0 }}>Update Your Health Profile</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Age:</label>
+                <input
+                  type="number"
+                  name="Age"
+                  value={scores["Age"]}
+                  onChange={handleChange}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>VO2 Max:</label>
+                <input
+                  type="number"
+                  name="VO2 Max"
+                  value={scores["VO2 Max"]}
+                  onChange={handleChange}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Heart Rate (bpm):</label>
+                <input
+                  type="number"
+                  name="Heart Rate"
+                  value={scores["Heart Rate"]}
+                  onChange={handleChange}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Sleep (hours):</label>
+                <input
+                  type="number"
+                  name="Sleep"
+                  value={scores["Sleep"]}
+                  onChange={handleChange}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Preferred Activity:</label>
+                <select
+                  name="Preferred Activity"
+                  value={scores["Preferred Activity"]}
+                  onChange={handleChange}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                >
+                  <option value="Running">Running</option>
+                  <option value="Walking">Walking</option>
+                  <option value="Cycling">Cycling</option>
+                  <option value="Swimming">Swimming</option>
+                  <option value="Weight Training">Weight Training</option>
+                  <option value="Yoga">Yoga</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Weakest Area:</label>
+                <select
+                  name="Weakest Area"
+                  value={scores["Weakest Area"]}
+                  onChange={handleChange}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                >
+                  <option value="Physical Health">Physical Health</option>
+                  <option value="Nutrition">Nutrition</option>
+                  <option value="Sleep & Recovery">Sleep & Recovery</option>
+                  <option value="Emotional Health">Emotional Health</option>
+                  <option value="Social Connection">Social Connection</option>
+                  <option value="Habits">Habits</option>
+                  <option value="Medical History">Medical History</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+              <button
+                type="submit"
+                className="special-button"
+                style={{ padding: '10px 20px' }}
+              >
+                Update Health Profile & Get Recommendations
+              </button>
+              <button
+                type="button"
+                onClick={handleClear}
+                className="special-button"
+                style={{ padding: '10px 20px', backgroundColor: '#6b7280' }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
         </div>
       </form>
     </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export default function FeedbackPanel({ recommendationData }) {
+export default function FeedbackPanel({ recommendationData, onRefresh }) {
   const [feedback, setFeedback] = useState("");
   const [notification, setNotification] = useState("");
   const [report, setReport] = useState("");
@@ -8,6 +8,22 @@ export default function FeedbackPanel({ recommendationData }) {
   const [assignedTask, setAssignedTask] = useState(recommendationData?.assigned_task || "");
   // Local state for streak
   const [consecutiveDays, setConsecutiveDays] = useState(recommendationData?.consecutive_days || 0);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      if (typeof onRefresh === "function") {
+        await onRefresh();
+      } else {
+        // Fallback: force a full reload if no onRefresh handler is provided
+        window.location.reload();
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (recommendationData && recommendationData.assigned_task) {
@@ -101,11 +117,16 @@ export default function FeedbackPanel({ recommendationData }) {
       </div>
       <div className="activity-tracker-box">
         <h3>Activity Tracker:</h3>
-        {consecutiveDays != null}
         {assignedTask && (
           <div><strong>Assigned Daily Task: {assignedTask}</strong></div>
         )}
-        <div style={{ marginTop: 10 }}>
+        {consecutiveDays != null && (
+          <div>Current Streak: {consecutiveDays} days</div>
+        )}
+        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={handleRefresh} disabled={isRefreshing}>
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </button>
           <button onClick={() => checkIn("done")}>I Did It</button>
           <button onClick={() => checkIn("miss")}>I Didn't Do It</button>
         </div>
