@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export default function ScoreForm({ onRecommendation, onScoreSubmit }) {
+export default function HealthSummary({ onRecommendation, onScoreSubmit }) {
   const numericFields = ["Age", "VO2 Max", "Heart Rate", "Sleep"];
 
   const [scores, setScores] = useState({

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import HealthPlan from "./HealthPlan";
+import Suggestions from "./Suggestions";
+import Chatbot from "./Chatbot";
 
 export default function App() {
   const [recommendationData, setRecommendationData] = useState(null);
@@ -146,7 +147,7 @@ export default function App() {
               </button>
             </div>
           )}
-          <ChatInterface 
+          <Chatbot 
             messages={chatMessages} 
             setMessages={setChatMessages} 
             healthScores={healthScores}

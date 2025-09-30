@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 const API = 'http://localhost:5000';
-import ScoreForm from "./ScoreForm";
-import FeedbackPanel from "./FeedbackPanel";
-import LongevityTip from "./LongevityTip";
-import ChatInterface from "./ChatInterface";
-import HealthPlan from "./HealthPlan";
+import HealthSummary from "./HealthSummary";
+import ProgressTracking from "./ProgressTracking";
+import LongevityInsights from "./LongevityInsights";
+import Chatbot from "./Chatbot";
+import Suggestions from "./Suggestions";
 
 // --- Helpers for Progress/History UI ---
 const USER_ID = 'testuser';
@@ -30,6 +30,11 @@ export default function App() {
   const [goalCategory, setGoalCategory] = useState("activity");
   const [goalCadence, setGoalCadence] = useState("daily");
   const [healthPlanKey, setHealthPlanKey] = useState(0); // Force HealthPlan to re-render
+  const [isRefreshing, setIsRefreshing] = useState(false); // Prevent multiple rapid refreshes
+  const [lastRefreshTime, setLastRefreshTime] = useState(0); // Track last refresh to prevent rapid calls
+  const [isLocalChange, setIsLocalChange] = useState(false); // Flag to prevent backend sync during local changes
+  const [isAddingGoals, setIsAddingGoals] = useState(false); // Flag to prevent multiple goal additions
+  const [deletedGoals, setDeletedGoals] = useState(new Set()); // Track deleted goal titles to prevent recreation
 
   // localStorage persistence
   const GOALS_KEY = "hf_goals_v1";
@@ -65,9 +70,42 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API}/api/stats?user_id=${USER_ID}`);
-        if (res.ok) setStats(await res.json());
-      } catch (e) { console.warn('stats fetch failed', e); }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
+        const res = await fetch(`${API}/api/stats?user_id=${USER_ID}`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const data = await res.json();
+          // Validate the stats data to prevent UI issues
+          if (data && typeof data === 'object') {
+            // Ensure all values are valid numbers
+            const validatedStats = {
+              total_done: Math.max(0, parseInt(data.total_done) || 0),
+              consecutive_done: Math.max(0, parseInt(data.consecutive_done) || 0),
+              best_streak: Math.max(0, parseInt(data.best_streak) || 0),
+              this_week_done: Math.max(0, parseInt(data.this_week_done) || 0),
+              this_week_total: Math.max(1, parseInt(data.this_week_total) || 7),
+              total_goals: Math.max(0, parseInt(data.total_goals) || 0),
+              last_7: Array.isArray(data.last_7) ? data.last_7 : []
+            };
+            setStats(validatedStats);
+          } else {
+            setStats(null);
+          }
+        } else {
+          setStats(null);
+        }
+      } catch (e) { 
+        if (e.name === 'AbortError') {
+          console.warn('stats fetch timed out');
+        } else {
+          console.warn('stats fetch failed', e);
+        }
+        setStats(null);
+      }
     })();
   }, [reloadFlag]);
 
@@ -106,25 +144,104 @@ export default function App() {
   };
 
   const removeGoal = async (id) => {
-    saveGoals(goals.filter(g => g.id !== id));
-    setHealthPlanKey(x => x + 1); // Trigger health plan refresh
+    const goalToRemove = goals.find(g => g.id === id);
+    if (!goalToRemove) {
+      console.warn('removeGoal: Goal not found', id);
+      return;
+    }
+    
+    console.log('removeGoal: Deleting goal', goalToRemove.title, 'with source', goalToRemove.source);
+    
+    // Show confirmation for important goals
+    const isImportant = goalToRemove.source === 'plan' || goalToRemove.source === 'suggested';
+    if (isImportant) {
+      const confirmed = window.confirm(
+        `Are you sure you want to delete "${goalToRemove.title}"? This will remove it from your progress tracking.`
+      );
+      if (!confirmed) return;
+    }
+    
+    // Set flag to prevent backend sync from overriding our changes
+    setIsLocalChange(true);
+    
+    // Track deleted goal title to prevent recreation
+    setDeletedGoals(prev => new Set([...prev, goalToRemove.title.toLowerCase().trim()]));
+    
+    // Optimistically update UI first
+    const updatedGoals = goals.filter(g => g.id !== id);
+    saveGoals(updatedGoals);
+    console.log('removeGoal: Updated local goals, now have', updatedGoals.length, 'goals');
+    // Don't trigger health plan refresh when deleting - this prevents goal recreation
+    
     try {
-      await fetch(`${API}/api/goals/${id}?user_id=testuser`, { method: 'DELETE' });
-    } catch (e) { console.warn('removeGoal backend error (ignored):', e); }
+      // Delete from backend
+      console.log('removeGoal: Sending DELETE request to backend for goal', id);
+      const res = await fetch(`${API}/api/goals/${id}?user_id=testuser`, { method: 'DELETE' });
+      if (!res.ok) {
+        // If backend deletion fails, revert the UI change
+        console.warn('removeGoal: Backend deletion failed, reverting UI change. Status:', res.status);
+        saveGoals(goals); // Revert to original goals
+        setIsLocalChange(false);
+        return;
+      }
+      
+      console.log('removeGoal: Backend deletion successful');
+      // Reset the local change flag after a delay to prevent immediate sync
+      setTimeout(() => {
+        setIsLocalChange(false);
+      }, 500);
+    } catch (e) { 
+      console.warn('removeGoal: Backend error, reverting UI change:', e);
+      // Revert UI change if backend call fails
+      saveGoals(goals);
+      setIsLocalChange(false);
+    }
   };
 
   const toggleGoal = async (id) => {
     const g = goals.find(x => x.id === id);
     if (!g) return;
     const next = !g.active;
+    
+    // Show helpful message for pausing goals
+    if (!next && g.active) {
+      const confirmed = window.confirm(
+        `Pause "${g.title}"? You can reactivate it anytime. Your progress will be preserved.`
+      );
+      if (!confirmed) return;
+    }
+    
+    // Set flag to prevent backend sync from overriding our changes
+    setIsLocalChange(true);
+    
     saveGoals(goals.map(x => x.id === id ? { ...x, active: next } : x));
     setHealthPlanKey(x => x + 1); // Trigger health plan refresh
+    
     try {
-      await fetch(`${API}/api/goals/${id}`, {
+      const res = await fetch(`${API}/api/goals/${id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: 'testuser', active: next })
       });
-    } catch (e) { console.warn('toggleGoal backend error (ignored):', e); }
+      
+      if (!res.ok) {
+        // If backend update fails, revert the UI change
+        console.warn('Backend toggle failed, reverting UI change');
+        saveGoals(goals); // Revert to original goals
+        setIsLocalChange(false);
+        return;
+      }
+      
+      // Refresh progress data to ensure consistency
+      setTimeout(() => {
+        setReloadFlag(x => x + 1);
+        setIsLocalChange(false); // Allow backend sync again
+      }, 100);
+    } catch (e) { 
+      console.warn('toggleGoal backend error, reverting UI change:', e);
+      // Revert UI change if backend call fails
+      saveGoals(goals);
+      setIsLocalChange(false);
+    }
   };
 
   const updateGoal = async (id, patch) => {
@@ -141,42 +258,118 @@ export default function App() {
   // Accept multiple goals (e.g., from HealthPlan) and merge into state/localStorage
   const addGoalsFromPlan = async (items = []) => {
     if (!Array.isArray(items) || items.length === 0) return;
-    const titles = new Set(goals.map(g => String(g.title).toLowerCase()));
-    const newGoals = [];
-    
-    for (const it of items) {
-      if (!it || !it.title) continue;
-      if (titles.has(String(it.title).toLowerCase())) continue;
-      newGoals.push({ title: it.title, category: it.category || 'other', cadence: it.cadence || 'daily', source: 'plan' });
+    if (isAddingGoals) {
+      console.log('Already adding goals, skipping to prevent loops');
+      return;
     }
     
-    // Add all new goals at once
-    for (const goal of newGoals) {
-      await addGoal(goal);
+    setIsAddingGoals(true);
+    console.log('addGoalsFromPlan called with:', items.length, 'items');
+    
+    try {
+      // Get current goal titles to prevent duplicates
+      const existingTitles = new Set(goals.map(g => String(g.title).toLowerCase().trim()));
+      const newGoals = [];
+      
+      for (const it of items) {
+        if (!it || !it.title) continue;
+        const normalizedTitle = String(it.title).toLowerCase().trim();
+        
+        // Skip if goal already exists or was previously deleted
+        if (existingTitles.has(normalizedTitle)) {
+          console.log(`Skipping duplicate goal: "${it.title}"`);
+          continue;
+        }
+        if (deletedGoals.has(normalizedTitle)) {
+          console.log(`Skipping previously deleted goal: "${it.title}"`);
+          continue;
+        }
+        
+        newGoals.push({ 
+          title: it.title, 
+          category: it.category || 'other', 
+          cadence: it.cadence || 'daily', 
+          source: 'plan',
+          active: false // Default to inactive for plan goals
+        });
+      }
+      
+      if (newGoals.length === 0) {
+        console.log('No new goals to add - all already exist');
+        return;
+      }
+      
+      console.log(`Adding ${newGoals.length} new goals from plan`);
+      
+      // Add all new goals at once without triggering multiple health plan refreshes
+      const addedGoals = [];
+      for (const goal of newGoals) {
+        try {
+          const payload = {
+            user_id: 'testuser',
+            title: goal.title,
+            category: goal.category || 'other',
+            cadence: goal.cadence || 'daily',
+            active: goal.active !== undefined ? goal.active : false
+          };
+          const res = await fetch(`${API}/api/goals`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            const created = await res.json();
+            addedGoals.push({ ...created, source: goal.source || 'plan' });
+          }
+        } catch (e) {
+          console.error('Failed to add goal:', goal.title, e);
+        }
+      }
+      
+      // Update goals list once with all new goals
+      if (addedGoals.length > 0) {
+        saveGoals([...addedGoals, ...goals]);
+        setHealthPlanKey(x => x + 1); // Single health plan refresh
+      }
+    } finally {
+      setIsAddingGoals(false);
     }
   };
   // Sync canonical goals from backend and merge with local
   useEffect(() => {
+    // Don't sync if we're making local changes
+    if (isLocalChange) return;
+    
     (async () => {
       try {
         const res = await fetch(`${API}/api/goals?user_id=testuser`);
         if (res.ok) {
           const serverGoals = await res.json();
-          // Prefer server as source of truth; preserve local-only metadata like `source`
-          const map = new Map(serverGoals.map(g => [g.id, g]));
-          const merged = serverGoals.map(g => ({ ...g, source: goals.find(x => x.id === g.id)?.source || 'server' }));
-          // Also include any local goals that don’t exist on server (attempt to push them up)
-          const localsOnly = goals.filter(g => !map.has(g.id));
-          for (const lg of localsOnly) {
-            try { await addGoal(lg); } catch {}
+          console.log('Backend sync: Server has', serverGoals.length, 'goals, local has', goals.length, 'goals');
+          
+          // Only sync if we have no local goals OR if server has significantly more goals
+          // This prevents server from overriding local deletions
+          if (goals.length === 0 || serverGoals.length > goals.length + 1) {
+            console.log('Syncing goals from server:', serverGoals.length, 'goals');
+            const merged = serverGoals.map(g => ({ 
+              ...g, 
+              source: goals.find(x => x.id === g.id)?.source || 'server' 
+            }));
+            saveGoals(merged);
+          } else {
+            console.log('Skipping sync - local goals are more recent or similar to server');
           }
-          saveGoals(merged.length ? merged : goals);
         }
       } catch (e) {
         console.warn('Could not fetch canonical goals (offline?)', e);
       }
     })();
-  }, []);
+  }, [isLocalChange]);
+
+  // Generate suggestions when health scores are available (controlled to prevent loops)
+  useEffect(() => {
+    if (healthScores || sessionStorage.getItem('healthScores')) {
+      generateSuggestions();
+    }
+  }, [healthScores]);
 
   // === Suggestions (from health data) ===
   const [suggestions, setSuggestions] = useState([]);
@@ -198,15 +391,26 @@ export default function App() {
     // Pull one rec title if available
     if (recs?.[0]?.title) out.push({ title: `Complete: ${recs[0].title}`, category: 'other', cadence: 'weekly', rationale: 'Top recommendation' });
 
-    // De-dupe against existing goals by title
+    // De-dupe against existing goals and deleted goals by title
     const existing = new Set(goals.map(g=>g.title.toLowerCase()));
-    setSuggestions(out.filter(s => !existing.has(s.title.toLowerCase())));
+    const newSuggestions = out.filter(s => {
+      const title = s.title.toLowerCase();
+      return !existing.has(title) && !deletedGoals.has(title);
+    });
+    setSuggestions(newSuggestions);
+    
+    // Don't auto-add suggestions - let HealthPlan component handle this
+    // This prevents duplicate goal creation
   };
 
   const last7Compact = useMemo(() => {
     if (!stats?.last_7) return '';
     const arr = Array.isArray(stats.last_7) ? stats.last_7 : [];
-    return arr.map(d => STATUS_EMOJI[d.status] || STATUS_EMOJI.unknown).join(' ');
+    if (arr.length === 0) return '';
+    
+    const symbols = arr.map(d => STATUS_EMOJI[d.status] || STATUS_EMOJI.unknown).join(' ');
+    // Only return if we have meaningful data (more than just one unknown symbol)
+    return symbols.length > 1 ? symbols : '';
   }, [stats]);
 
   return (
@@ -310,21 +514,43 @@ export default function App() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Your Progress</h2>
-              <button className="special-button" onClick={() => {
-                setReloadFlag(x => x + 1);
-                setHealthPlanKey(x => x + 1);
-              }}>Refresh</button>
+              <button 
+                className="special-button" 
+                disabled={isRefreshing}
+                onClick={async () => {
+                  const now = Date.now();
+                  if (isRefreshing || (now - lastRefreshTime) < 2000) return; // Prevent calls within 2 seconds
+                  
+                  setIsRefreshing(true);
+                  setLastRefreshTime(now);
+                  try {
+                    // Only refresh progress data, not health plan
+                    setReloadFlag(x => x + 1);
+                    // Add a longer delay to ensure backend has time to process
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                  } finally {
+                    setIsRefreshing(false);
+                  }
+                }}
+              >
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
             </div>
             {stats ? (
               <div style={{ marginTop: 8 }}>
                 <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
-                  <div>Goals Completed: <strong>{stats.total_done ?? 0}</strong></div>
+                  <div>Total Check-ins: <strong>{stats.total_done ?? 0}</strong></div>
                   <div>Current Streak: <strong>{stats.consecutive_done ?? 0}</strong></div>
                   <div>Best Streak: <strong>{stats.best_streak ?? 0}</strong></div>
                 </div>
                 
                 {/* Visual Progress Indicators */}
-                <div style={{ marginBottom: 16 }}>
+                <div style={{ 
+                  marginBottom: 16, 
+                  opacity: isRefreshing ? 0.6 : 1, 
+                  transition: 'opacity 0.3s ease, transform 0.2s ease',
+                  transform: isRefreshing ? 'scale(0.98)' : 'scale(1)'
+                }}>
                   {/* Weekly Progress Bar */}
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -356,7 +582,7 @@ export default function App() {
                           cx="30" cy="30" r="25"
                           fill="none" stroke="#10b981" strokeWidth="6"
                           strokeDasharray={`${2 * Math.PI * 25}`}
-                          strokeDashoffset={`${2 * Math.PI * 25 * (1 - Math.min(1, (stats.total_done || 0) / Math.max(1, stats.total_goals || 10)))}`}
+                          strokeDashoffset={`${2 * Math.PI * 25 * (1 - Math.min(1, (stats.this_week_done || 0) / Math.max(1, stats.this_week_total || 7)))}`}
                           style={{ transition: 'stroke-dashoffset 0.3s ease' }}
                         />
                       </svg>
@@ -364,20 +590,20 @@ export default function App() {
                         position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
                         fontSize: '0.7rem', fontWeight: 'bold', color: '#10b981'
                       }}>
-                        {Math.round((stats.total_done || 0) / Math.max(1, stats.total_goals || 10) * 100)}%
+                        {Math.round((stats.this_week_done || 0) / Math.max(1, stats.this_week_total || 7) * 100)}%
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: '500', marginBottom: 2 }}>Overall Progress</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '500', marginBottom: 2 }}>Weekly Progress</div>
                       <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-                        {stats.total_done || 0} of {stats.total_goals || 10} goals completed
+                        {stats.this_week_done || 0} of {stats.this_week_total || 7} days this week
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Recent Activity Timeline */}
-                {last7Compact && (
+                {last7Compact && last7Compact.length > 3 ? (
                   <div>
                     <div style={{ fontSize: '0.9rem', fontWeight: '500', marginBottom: 8 }}>Recent Activity</div>
                     <div style={{ 
@@ -395,16 +621,33 @@ export default function App() {
                       <span>Today</span>
                     </div>
                   </div>
+                ) : (
+                  <div style={{ 
+                    fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', 
+                    background: '#f9fafb', padding: 8, borderRadius: 6,
+                    fontStyle: 'italic'
+                  }}>
+                    Complete your first check-in to see activity history
+                  </div>
                 )}
               </div>
             ) : (
-              <div style={{ color: '#6b7280' }}>Complete your health profile to get personalized suggestions.</div>
+              <div style={{ 
+                color: '#6b7280', 
+                textAlign: 'center', 
+                padding: '20px',
+                background: '#f9fafb',
+                borderRadius: '6px',
+                border: '1px dashed #d1d5db'
+              }}>
+                {isRefreshing ? 'Loading progress data...' : 'Complete your first check-in to see progress tracking.'}
+              </div>
             )}
           </div>
         </div>
         {/* Longevity Insights Tab - commented out
         <div style={{ display: activeTab === "longevity" ? "block" : "none" }}>
-          <LongevityTip />
+          <LongevityInsights />
         </div>
         */}
         {/* Goals Tab */}
@@ -416,8 +659,46 @@ export default function App() {
             padding: 16,
             marginBottom: 12
           }}>
-            <h2 style={{ marginTop: 0 }}>Your Goals</h2>
-            <p style={{ marginTop: 0, color: "#555" }}>Create custom goals, toggle them active/inactive, or delete. Active goals drive chat accountability.</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h2 style={{ margin: 0 }}>Your Goals</h2>
+              <button 
+                className="special-button" 
+                onClick={generateSuggestions}
+                style={{ fontSize: '0.8rem' }}
+              >
+                Generate Suggestions
+              </button>
+            </div>
+            <p style={{ marginTop: 0, color: "#555" }}>
+              Create custom goals, toggle them active/inactive, or delete. Active goals drive chat accountability.
+              <br />
+              <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 500 }}>
+                💡 Your progress is preserved when pausing goals - no data loss!
+              </span>
+            </p>
+            {suggestions.length > 0 && (
+              <div style={{ 
+                background: '#f0f9ff', 
+                border: '1px solid #0ea5e9', 
+                borderRadius: 6, 
+                padding: 12, 
+                marginBottom: 16 
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>💡 Suggested Goals:</div>
+                {suggestions.map((s, i) => (
+                  <div key={i} style={{ fontSize: '0.9rem', marginBottom: 4 }}>
+                    • {s.title} <span style={{ color: '#666' }}>({s.category})</span>
+                  </div>
+                ))}
+                <button 
+                  className="special-button" 
+                  onClick={() => addGoalsFromPlan(suggestions)}
+                  style={{ marginTop: 8, fontSize: '0.8rem' }}
+                >
+                  Add All Suggestions as Goals
+                </button>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, flexWrap: 'wrap' }}>
               <input
                 type="text"
@@ -446,19 +727,64 @@ export default function App() {
                 {goals.map(g => (
                   <div key={g.id} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                    border: '1px solid #e5e7eb', borderRadius: 8, padding: 10,
-                    background: g.active ? '#f0fdf4' : '#f8fafc'
+                    border: g.active ? '1px solid #10b981' : '1px solid #d1d5db', 
+                    borderRadius: 8, padding: 12,
+                    background: g.active ? '#f0fdf4' : '#f8fafc',
+                    transition: 'all 0.2s ease',
+                    transform: g.active ? 'scale(1)' : 'scale(0.98)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <input type="checkbox" checked={g.active} onChange={()=>toggleGoal(g.id)} />
                       <div>
-                        <div style={{ fontWeight: 600 }}>{g.title}</div>
-                        <div style={{ fontSize: 12, color: '#555' }}>{g.category} • {g.cadence}{g.source ? ` • ${g.source}` : ''}</div>
+                        <div style={{ 
+                          fontWeight: 600, 
+                          color: g.active ? '#065f46' : '#6b7280',
+                          textDecoration: g.active ? 'none' : 'line-through'
+                        }}>
+                          {g.title}
+                        </div>
+                        <div style={{ 
+                          fontSize: 12, 
+                          color: g.active ? '#047857' : '#9ca3af',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}>
+                          <span>{g.category} • {g.cadence}</span>
+                          {g.source && <span style={{ 
+                            background: g.source === 'plan' ? '#dbeafe' : '#fef3c7',
+                            color: g.source === 'plan' ? '#1e40af' : '#92400e',
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            fontSize: 10
+                          }}>
+                            {g.source}
+                          </span>}
+                        </div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="special-button" onClick={()=>updateGoal(g.id, { active: !g.active })}>{g.active ? 'Pause' : 'Activate'}</button>
-                      <button className="special-button" onClick={()=>removeGoal(g.id)}>Delete</button>
+                      <button 
+                        className="special-button" 
+                        onClick={()=>updateGoal(g.id, { active: !g.active })}
+                        style={{
+                          background: g.active ? '#fef3c7' : '#dbeafe',
+                          color: g.active ? '#92400e' : '#1e40af',
+                          border: g.active ? '1px solid #f59e0b' : '1px solid #3b82f6'
+                        }}
+                      >
+                        {g.active ? 'Pause' : 'Activate'}
+                      </button>
+                      <button 
+                        className="special-button" 
+                        onClick={()=>removeGoal(g.id)}
+                        style={{
+                          background: '#fee2e2',
+                          color: '#dc2626',
+                          border: '1px solid #f87171'
+                        }}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -512,7 +838,7 @@ export default function App() {
               Tracking goals: <strong>{goals.filter(g=>g.active).map(g=>g.title).join(', ')}</strong>
             </div>
           )}
-          <ChatInterface 
+          <Chatbot 
             messages={chatMessages} 
             setMessages={setChatMessages} 
             healthScores={healthScores}
@@ -521,7 +847,7 @@ export default function App() {
         </div>
         {/* Suggestions (formerly Health Plan) Tab */}
         <div style={{ display: activeTab === "plan" ? "block" : "none" }}>
-          <HealthPlan key={healthPlanKey} healthScores={healthScores} />
+          <Suggestions key={healthPlanKey} healthScores={healthScores} onAddGoals={addGoalsFromPlan} />
         </div>
       </div>
     </div>

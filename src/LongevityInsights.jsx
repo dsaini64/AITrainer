@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-export default function LongevityTip() {
+export default function LongevityInsights() {
   const [activity, setActivity] = useState("");
   const [tip, setTip] = useState("");
   const [isLoading, setIsLoading] = useState(false);

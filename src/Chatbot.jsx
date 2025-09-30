@@ -5,7 +5,7 @@ const API = 'http://localhost:5000';
 const GOALS_API = `${API}/api/goals`;
 
 
-export default function ChatInterface({ messages, setMessages, healthScores }) {
+export default function Chatbot({ messages, setMessages, healthScores }) {
   // Populate sessionStorage with defaults for both general and health-related scores
   useEffect(() => {
     sessionStorage.setItem("age", "25");

@@ -1,14 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const API = 'http://localhost:5000';
 
-export default function HealthPlan({ healthScores }) {
+export default function Suggestions({ healthScores, onAddGoals }) {
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [goalsAdded, setGoalsAdded] = useState(false);
+  const hasFetched = useRef(false); // Prevent multiple fetches
+  const isFetching = useRef(false); // Prevent concurrent fetches
 
   useEffect(() => {
+    // Prevent multiple fetches
+    if (hasFetched.current || isFetching.current) return;
+    
     const fetchPlan = async () => {
+      isFetching.current = true; // Mark as fetching
+      hasFetched.current = true; // Mark as fetched
       setLoading(true);
       setError('');
       try {
@@ -25,16 +33,31 @@ export default function HealthPlan({ healthScores }) {
         }
         const data = await res.json();
         setPlan(data);
+        
+        // Auto-add suggested habits as goals (controlled to prevent loops)
+        if (data.suggested_habits && Array.isArray(data.suggested_habits) && onAddGoals && !goalsAdded) {
+          console.log('Auto-adding suggested habits as inactive goals');
+          const goalItems = data.suggested_habits.map(habit => ({
+            title: habit,
+            category: 'other',
+            cadence: 'daily',
+            source: 'plan'
+          }));
+          onAddGoals(goalItems);
+          setGoalsAdded(true);
+        }
       } catch (err) {
         console.error('Failed to load health plan:', err);
         setError('Could not load health plan. Please try again.');
+        hasFetched.current = false; // Reset on error to allow retry
       } finally {
         setLoading(false);
+        isFetching.current = false; // Reset fetching flag
       }
     };
 
     fetchPlan();
-  }, [healthScores]);
+  }, [healthScores]); // Only depend on healthScores, not onAddGoals
 
   if (loading) {
     return <p>Generating suggestions…</p>;
@@ -63,7 +86,7 @@ export default function HealthPlan({ healthScores }) {
         ))}
       </ul>
       <p style={{ fontSize: 14, color: '#666', marginTop: 12 }}>
-        💡 <strong>Tip:</strong> These suggested habits have been added to your Goals tab as inactive goals. 
+        💡 <strong>Tip:</strong> These suggested habits have been automatically added to your Goals tab as inactive goals. 
         You can activate them by checking the boxes in the Goals tab.
       </p>
     </div>

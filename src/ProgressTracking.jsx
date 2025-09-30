@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export default function FeedbackPanel({ recommendationData, onRefresh }) {
+export default function ProgressTracking({ recommendationData, onRefresh }) {
   const [feedback, setFeedback] = useState("");
   const [notification, setNotification] = useState("");
   const [report, setReport] = useState("");

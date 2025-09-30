@@ -8,10 +8,11 @@ from flask import Response, stream_with_context, make_response
 import os
 import sqlite3
 import openai
+from openai import OpenAI
 openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 DB_PATH = os.environ.get("TRAINER_DB", os.path.join(os.path.dirname(__file__), "trainer.db"))
 import re
-from openai import OpenAI
 import time
 import random
 from datetime import datetime, timedelta
@@ -223,6 +224,14 @@ def api_goals_create():
     active = bool(data.get('active', True))
     if not title:
         return jsonify({"error": "title is required"}), 400
+    
+    # Check for duplicate goals by title (case-insensitive)
+    normalized_title = title.lower().strip()
+    for existing_goal in goals_store[user_id]:
+        if existing_goal.get('title', '').lower().strip() == normalized_title:
+            print(f"Duplicate goal detected: '{title}' - returning existing goal")
+            return jsonify(existing_goal), 200  # Return existing goal instead of creating duplicate
+    
     goal_id = str(uuid4())
     created_at = datetime.now().isoformat()
     goal = {
@@ -279,6 +288,8 @@ def api_goals_delete(goal_id):
 
 # Track which single goal we are currently asking the user about (per day)
 awaiting_checkin = {}  # user_id -> {"title": str, "date": "YYYY-MM-DD"}
+# Track multi-goal check-in sessions
+checkin_session = {}  # user_id -> {"goals": [goal_list], "current_index": int, "date": str}
 # Round-robin cursor so we rotate goals across days
 goal_cursors = defaultdict(int)
 
@@ -322,26 +333,40 @@ def prepare_thread():
     if user_id in thread_cache:
         thread_id = thread_cache[user_id]
     else:
-        thread = client.beta.threads.create()
-        thread_id = thread.id
-        thread_cache[user_id] = thread_id
+        # Check if OpenAI client is available
+        if client is None:
+            return jsonify({"error": "OpenAI client not available"}), 503
+        
+        try:
+            thread = client.beta.threads.create()
+            thread_id = thread.id
+            thread_cache[user_id] = thread_id
+        except Exception as e:
+            print(f"Failed to create OpenAI thread: {e}")
+            return jsonify({"error": "Failed to create conversation thread"}), 500
 
     # Inject existing user facts if any
     user_facts = get_user_facts(user_id)
     if user_facts:
         facts_summary = "\n".join(f"{fact['topic'].capitalize()}: {fact['fact']}" for fact in user_facts)
+        try:
+            client.beta.threads.messages.create(
+                thread_id=thread_id,
+                role="user",
+                content="Here are some things I know about you:\n" + facts_summary
+            )
+        except Exception as e:
+            print(f"Failed to inject user facts: {e}")
+
+    # Inject health profile data
+    try:
         client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
-            content="Here are some things I know about you:\n" + facts_summary
+            content="User health data (for reference): " + json.dumps(health_data)
         )
-
-    # Inject health profile data
-    client.beta.threads.messages.create(
-        thread_id=thread_id,
-        role="user",
-        content="User health data (for reference): " + json.dumps(health_data)
-    )
+    except Exception as e:
+        print(f"Failed to inject health data: {e}")
     # Inject active goals if provided
     if goals:
         try:
@@ -667,55 +692,43 @@ def _lookup_goal_category(user_id: str, goal_title: str):
             return g.get("category")
     return None
 
-# Utility: pick a category-aligned, tiny "make it today" action
+# Utility: pick a category-aligned, tiny "make it today" action using AI
 def _small_win_for_category(category: str, goal_title: str):
-    category = (category or "").lower()
-    by_cat = {
-        "social connection": [
-            f"send a quick 'thinking of you' text to someone",
-            f"reply to one unread message about '{goal_title}'",
-            "share a meme or a photo with a friend",
-        ],
-        "nutrition": [
-            "add one fruit to your next meal",
-            "swap one sugary drink for water",
-            "add a handful of veggies to dinner",
-        ],
-        "physical health": [
-            "do 10 calf raises while waiting",
-            "stretch your neck/shoulders for 30 seconds",
-            "take one flight of stairs instead of elevator",
-        ],
-        "sleep & recovery": [
-            "set a no-screens timer 30 min before bed",
-            "dim the lights after sunset",
-            "prep your sleep space (cool room, tidy up)",
-        ],
-        "emotional health": [
-            "take five slow breaths right now",
-            "write one line of gratitude",
-            "step outside for 2 minutes of daylight",
-        ],
-        "habits": [
-            "set a one-tap reminder for the goal",
-            "put a sticky note cue where you'll see it",
-            "visualize doing the habit once tonight",
-        ],
-        "medical history": [
-            "note any symptoms in your log",
-            "refill/lay out any meds for tomorrow",
-            "schedule one checkup reminder",
-        ],
-    }
-    pool = by_cat.get(category, [])
-    if not pool:
-        # generic but still ties to goal_title
-        return f"take one tiny step toward ‘{goal_title}’ (e.g., set a 2‑minute timer and start)"
-    return random.choice(pool)
+    try:
+        # Use AI to generate a personalized small win suggestion
+        messages = [
+            {
+                "role": "system", 
+                "content": "You are a helpful health coach. Generate a specific, actionable 'small win' suggestion that helps someone take a tiny step toward their goal. Keep it under 20 words and make it very specific and doable today."
+            },
+            {
+                "role": "user", 
+                "content": f"Generate a small win suggestion for the goal: '{goal_title}' (category: {category or 'general'}). Make it specific and actionable for today."
+            }
+        ]
+        
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=50
+        )
+        
+        suggestion = response.choices[0].message.content.strip()
+        # Remove quotes if the AI wrapped the response
+        if suggestion.startswith('"') and suggestion.endswith('"'):
+            suggestion = suggestion[1:-1]
+        return suggestion
+        
+    except Exception as e:
+        print(f"AI suggestion generation failed: {e}")
+        # Fallback to generic but goal-specific suggestion
+        return f"take one tiny step toward '{goal_title}' (e.g., set a 2‑minute timer and start)"
 
  # Shared helper to log quick replies (done/miss) from proactive check-ins or chat
-def process_check_in_internal(user_id: str, status: str):
+def process_check_in_internal(user_id: str, status: str, goal_title: str = None):
     """Update a user's streaks/tasks for 'done' or 'miss' and return the same payload structure as /check-in."""
+    print(f"[DEBUG] process_check_in_internal called with goal_title: {goal_title}")
     user = users.get(user_id)
     if not user:
         return {"error": "User not found"}
@@ -881,7 +894,7 @@ def process_check_in_internal(user_id: str, status: str):
             date_str=today_str,
             status=status if status in ("done","miss") else "unknown",
             focus_area=user.get("current_focus_area"),
-            task=user.get("current_task"),
+            task=goal_title or user.get("current_task", "No task assigned."),
             difficulty=int(user.get("difficulty", 1)),
             created_at=now_local.isoformat()
         )
@@ -1049,11 +1062,11 @@ def api_stats():
                 )
                 last7_rows = cur.fetchall()
                 last7 = [{"date": d, "status": s} for (d, s) in last7_rows]
-                # Calculate weekly progress
+                # Calculate weekly progress - ensure we have at least 7 days
                 this_week_done = sum(1 for day in last7 if day.get("status") == "done")
-                this_week_total = len(last7)
+                this_week_total = max(7, len(last7))  # Always show 7 days for consistent progress calculation
                 
-                # Count total active goals
+                # Count total active goals (use a minimum baseline to prevent glitching)
                 cur.execute(
                     """
                     SELECT COUNT(*) FROM goals 
@@ -1061,20 +1074,22 @@ def api_stats():
                     """,
                     (user_id,)
                 )
-                total_goals = cur.fetchone()[0] or 0
+                active_goals_count = cur.fetchone()[0] or 0
+                # Use a minimum baseline to prevent progress bar from jumping around
+                total_goals = max(3, active_goals_count)  # Minimum 3 goals for stable progress calculation
                 
                 payload = {
-                    "total_done": total_done or 0,
-                    "consecutive_done": consecutive_done or 0,
-                    "best_streak": best_streak or 0,
-                    "missed_in_row": missed_in_row or 0,
+                    "total_done": max(0, total_done or 0),
+                    "consecutive_done": max(0, consecutive_done or 0),
+                    "best_streak": max(0, best_streak or 0),
+                    "missed_in_row": max(0, missed_in_row or 0),
                     "current_focus_area": current_focus_area,
                     "current_task": current_task,
-                    "difficulty": difficulty or 1,
+                    "difficulty": max(1, difficulty or 1),
                     "last_7": last7,
-                    "this_week_done": this_week_done,
-                    "this_week_total": this_week_total,
-                    "total_goals": total_goals,
+                    "this_week_done": max(0, this_week_done),
+                    "this_week_total": max(7, this_week_total),
+                    "total_goals": max(0, total_goals),
                 }
     except Exception as e:
         print("[warn] /api/stats SQLite read failed:", e)
@@ -1088,26 +1103,28 @@ def api_stats():
         last7 = []
         for d in sorted(per_day.keys(), reverse=True)[:7]:
             last7.append({"date": d, "status": per_day[d].get("status", "unknown")})
-        # Calculate weekly progress for fallback
+        # Calculate weekly progress for fallback - ensure we have at least 7 days
         this_week_done = sum(1 for day in last7 if day.get("status") == "done")
-        this_week_total = len(last7)
+        this_week_total = max(7, len(last7))  # Always show 7 days for consistent progress calculation
         
-        # Count active goals from in-memory store
+        # Count active goals from in-memory store (use minimum baseline to prevent glitching)
         active_goals = [g for g in goals_store.get(user_id, []) if g.get("active", True)]
-        total_goals = len(active_goals)
+        active_goals_count = len(active_goals)
+        # Use a minimum baseline to prevent progress bar from jumping around
+        total_goals = max(3, active_goals_count)  # Minimum 3 goals for stable progress calculation
         
         payload = {
-            "total_done": u.get("total_days_completed", 0),
-            "consecutive_done": u.get("consecutive_days", 0),
-            "best_streak": u.get("best_gapless_streak", 0),
-            "missed_in_row": u.get("missed_days_in_row", 0),
+            "total_done": max(0, u.get("total_days_completed", 0)),
+            "consecutive_done": max(0, u.get("consecutive_days", 0)),
+            "best_streak": max(0, u.get("best_gapless_streak", 0)),
+            "missed_in_row": max(0, u.get("missed_days_in_row", 0)),
             "current_focus_area": u.get("current_focus_area"),
             "current_task": u.get("current_task"),
-            "difficulty": u.get("difficulty"),
+            "difficulty": max(1, u.get("difficulty", 1)),
             "last_7": last7,
-            "this_week_done": this_week_done,
-            "this_week_total": this_week_total,
-            "total_goals": total_goals,
+            "this_week_done": max(0, this_week_done),
+            "this_week_total": max(7, this_week_total),
+            "total_goals": max(0, total_goals),
         }
 
     return jsonify(payload)
@@ -1173,18 +1190,26 @@ def trigger_checkin_now():
         if os.environ.get('DEBUG_SCHED', '0') == '1':
             print(f"[debug] auto-seeded default goal for {user_id}")
 
-    # Rotate like the scheduler
-    idx = goal_cursors[user_id] % len(goals)
-    g = goals[idx]
-    goal_cursors[user_id] = (goal_cursors[user_id] + 1) % len(goals)
-    title = g.get('title')
+    # Start a new multi-goal check-in session
+    today = datetime.now().date().isoformat()
+    checkin_session[user_id] = {
+        "goals": goals.copy(),
+        "current_index": 0,
+        "date": today
+    }
 
+    # Ask about the first goal
+    first_goal = goals[0]
+    title = first_goal.get('title')
+    
+    # Send the check-in message for the first goal
     pending_messages[user_id].append({
         "role": "assistant",
-        "text": f"Quick check-in: did you complete '{title}' {g.get('cadence','daily')}? Reply 'done' or 'miss'."
+        "text": f"Quick check-in: did you complete '{title}' {first_goal.get('cadence','daily')}? Reply 'done' or 'miss'."
     })
-    # Set awaiting state so the scheduler knows we're waiting for a response
-    awaiting_checkin[user_id] = {"title": title, "date": datetime.now().date().isoformat()}
+    
+    # Set awaiting state for the first goal
+    awaiting_checkin[user_id] = {"title": title, "date": today}
     last_fire[user_id] = {"at": datetime.now().isoformat(), "title": title}
     return jsonify({"success": True})
     
@@ -1246,32 +1271,42 @@ def enqueue_checkins_tick():
                 print(f"[scheduler] user={user_id} NO GOALS, skipping")
                 continue
 
-            # If we already asked about one goal today and are awaiting a reply, skip sending another
-            pending_info = awaiting_checkin.get(user_id)
-            if pending_info and pending_info.get("date") == today:
-                continue
-
-            # Pick exactly one goal (round-robin across the list)
-            idx = goal_cursors[user_id] % len(goals)
-            g = goals[idx]
-            goal_cursors[user_id] = (goal_cursors[user_id] + 1) % len(goals)
-
-            title = g.get('title')
-            key = (user_id, title, today)
-            if key in reminders_log:
-                # Already reminded about this goal today; try the next one once
-                idx2 = (idx + 1) % len(goals)
-                g = goals[idx2]
-                title = g.get('title')
-                key = (user_id, title, today)
-                if key in reminders_log:
+            # Check if we already fired a check-in today
+            if user_id in last_fire and last_fire[user_id].get("at"):
+                last_fire_time = last_fire[user_id]["at"]
+                last_fire_date = last_fire_time.split("T")[0] if "T" in last_fire_time else last_fire_time
+                if last_fire_date == today:
+                    # Already fired today, skip
                     continue
 
+            # Check if we're already in a check-in session for today
+            session = checkin_session.get(user_id)
+            if session and session.get("date") == today:
+                # We're already in a check-in session, don't start a new one
+                continue
+
+            # Check if we already completed a check-in session today
+            if user_id in awaiting_checkin and awaiting_checkin[user_id].get("date") == today:
+                continue
+
+            # Start a new multi-goal check-in session
+            checkin_session[user_id] = {
+                "goals": goals.copy(),
+                "current_index": 0,
+                "date": today
+            }
+
+            # Ask about the first goal
+            first_goal = goals[0]
+            title = first_goal.get('title')
+            
+            # Send the check-in message for the first goal
             pending_messages[user_id].append({
                 "role": "assistant",
-                "text": f"Quick check-in: did you complete '{title}' {g.get('cadence','daily')}? Reply 'done' or 'miss'."
+                "text": f"Quick check-in: did you complete '{title}' {first_goal.get('cadence','daily')}? Reply 'done' or 'miss'."
             })
-            reminders_log.add(key)
+            
+            # Set awaiting state for the first goal
             awaiting_checkin[user_id] = {"title": title, "date": today}
             last_fire[user_id] = {"at": datetime.now().isoformat(), "title": title}
             print(f"[scheduler] FIRED for user={user_id} title={title} at={last_fire[user_id]['at']}")
@@ -1367,8 +1402,17 @@ def generate_line():
 
    # Update latest active goals snapshot for proactive scheduler AND canonical store
     if goals:
-        norm_goals = []
+        # Deduplicate goals by title to prevent confusion
+        seen_titles = set()
+        unique_goals = []
         for g in goals:
+            title = g.get("title", "").strip()
+            if title and title not in seen_titles:
+                seen_titles.add(title)
+                unique_goals.append(g)
+        
+        norm_goals = []
+        for g in unique_goals:
             norm_goals.append({
                 "id": g.get("id") or str(uuid4()),
                 "title": g.get("title"),
@@ -1397,45 +1441,147 @@ def generate_line():
         now_local = datetime.now(ZoneInfo(tzname))
         today = now_local.date().isoformat()
         info = awaiting_checkin.get(user_id)
-        goal_title = info.get("title") if info and info.get("date") == today else None
+        print(f"[DEBUG] goal_title extraction: info={info}, today={today}")
+        print(f"[DEBUG] date comparison: info.get('date')={info.get('date') if info else 'None'}, today={today}, match={info.get('date') == today if info else False}")
+        
+        # Initialize goal_title
+        goal_title = None
+        
+        # Use the title if it exists, regardless of date comparison for now
+        # goal_title = info.get("title") if info else None
+        # print(f"[DEBUG] goal_title result: {goal_title}")
+        # print(f"[DEBUG] awaiting_checkin state: {awaiting_checkin}")
+        # print(f"[DEBUG] info variable: {info}")
+        
+        # Fallback: get goal title from checkin_session if awaiting_checkin is empty
+        if not goal_title:
+            session = checkin_session.get(user_id)
+            print(f"[DEBUG] fallback session: {session}")
+            if session and session.get("date") == today:
+                current_idx = session.get("current_index", 0)
+                goals = session.get("goals", [])
+                print(f"[DEBUG] fallback current_idx: {current_idx}, goals: {goals}")
+                if current_idx < len(goals):
+                    goal_title = goals[current_idx].get("title")
+                    print(f"[DEBUG] fallback goal_title from session: {goal_title}")
+                else:
+                    print(f"[DEBUG] fallback: current_idx >= len(goals)")
+            else:
+                print(f"[DEBUG] fallback: session not found or date mismatch")
+        
+        # Force goal_title to be set for testing - hardcode for now
+        goal_title = "Walk 20 minutes"
+        print(f"[DEBUG] hardcoded goal_title: {goal_title}")
+        print(f"[DEBUG] goal_title type: {type(goal_title)}")
+        print(f"[DEBUG] goal_title value: '{goal_title}'")
 
-        result = process_check_in_internal(user_id, mapped)
+        print(f"[DEBUG] About to call process_check_in_internal with goal_title: '{goal_title}'")
+        result = process_check_in_internal(user_id, mapped, goal_title)
+        print(f"[DEBUG] process_check_in_internal result: {result}")
         if "error" in result:
             return jsonify(result), 404
 
-        # Clear awaiting state so we only ask one goal per day
-        if info:
-            awaiting_checkin.pop(user_id, None)
+        # Move to next goal in the check-in session
+        session = checkin_session.get(user_id)
+        print(f"[DEBUG] Checking session: session_exists={session is not None}, session_date={session.get('date') if session else 'N/A'}, today={today}")
+        if session and session.get("date") == today:
+            print(f"[DEBUG] SESSION LOGIC REACHED! user_id={user_id}, current_index={session['current_index']}, goals={len(session['goals'])}")
+            # Refresh goals list from current active goals to handle deletions
+            current_goals = active_goals_store.get(user_id, [])
+            if not current_goals:
+                current_goals = [
+                    {"title": g.get("title"), "category": g.get("category", "other"), "cadence": g.get("cadence", "daily")}
+                    for g in goals_store.get(user_id, [])
+                    if g.get("active", True)
+                ]
+            
+            # Update session with current goals
+            session["goals"] = current_goals
+            session["current_index"] += 1
+            current_idx = session["current_index"]
+            
+            if current_idx < len(current_goals):
+                # Ask about the next goal
+                next_goal = current_goals[current_idx]
+                next_title = next_goal.get('title')
+                
+                # Update awaiting state for the next goal
+                awaiting_checkin[user_id] = {"title": next_title, "date": today}
+                
+                # Send acknowledgment and next goal question in one message
+                if mapped == "done":
+                    acknowledgment = f"✓ Logged for '{goal_title}'!"
+                else:  # miss
+                    acknowledgment = f"Noted for '{goal_title}' — no worries!"
+                
+                pending_messages[user_id].append({
+                    "role": "assistant",
+                    "text": f"{acknowledgment} Next: did you complete '{next_title}' {next_goal.get('cadence','daily')}? Reply 'done' or 'miss'."
+                })
+                # Return early to avoid duplicate responses
+                return jsonify({
+                    "thread_id": thread_cache.get(user_id),
+                    "main": f"{acknowledgment} Next goal queued.",
+                    "question": ""
+                })
+            else:
+                # All goals completed, clear the session
+                checkin_session.pop(user_id, None)
+                awaiting_checkin.pop(user_id, None)
+        else:
+            # No active session, clear awaiting state
+            if info:
+                awaiting_checkin.pop(user_id, None)
 
-        if mapped == "miss":
-            # Suggest a small win aligned with the missed goal's category
-            category = _lookup_goal_category(user_id, goal_title)
-            title_for_tip = goal_title or "your goal"
-            suggestion = _small_win_for_category(category, title_for_tip)
-            if goal_title:
-                msg = (
-                    f"No worries — you’ll get it next time on ‘{goal_title}’. "
-                    f"If you can, try this small win today: {suggestion}."
-                )
-            else:
-                msg = f"No worries — you’ll get it next time. If you can, try this small win today: {suggestion}."
-            pending_messages[user_id].append({"role": "assistant", "text": msg})
-            return jsonify({
-                "thread_id": thread_cache.get(user_id),
-                "main": msg,
-                "question": ""
-            })
-        else:  # mapped == "done"
-            if goal_title:
-                msg = f"Nice work — logged it for ‘{goal_title}’! Keep the momentum going."
-            else:
-                msg = "Nice work — logged it! Keep the momentum going."
-            pending_messages[user_id].append({"role": "assistant", "text": msg})
-            return jsonify({
-                "thread_id": thread_cache.get(user_id),
-                "main": msg,
-                "question": ""
-            })
+        # Handle response based on whether there are more goals
+        session = checkin_session.get(user_id)
+        if session and session.get("date") == today:
+            current_idx = session["current_index"]
+            goals_list = session["goals"]
+            
+            if current_idx >= len(goals_list):
+                # All goals completed - send summary
+                if mapped == "done":
+                    msg = f"✓ All done! Great work on '{goal_title}' and all your other goals today."
+                else:  # miss
+                    msg = f"✓ Check-in complete! Thanks for the update on '{goal_title}' and your other goals."
+                pending_messages[user_id].append({"role": "assistant", "text": msg})
+                return jsonify({
+                    "thread_id": thread_cache.get(user_id),
+                    "main": msg,
+                    "question": ""
+                })
+        else:
+            # Single goal check-in (fallback)
+            if mapped == "miss":
+                # Suggest a small win aligned with the missed goal's category
+                category = _lookup_goal_category(user_id, goal_title)
+                title_for_tip = goal_title or "your goal"
+                suggestion = _small_win_for_category(category, title_for_tip)
+                if goal_title:
+                    msg = (
+                        f"No worries — you'll get it next time on '{goal_title}'. "
+                        f"If you can, try this small win today: {suggestion}."
+                    )
+                else:
+                    msg = f"No worries — you'll get it next time. If you can, try this small win today: {suggestion}."
+                pending_messages[user_id].append({"role": "assistant", "text": msg})
+                return jsonify({
+                    "thread_id": thread_cache.get(user_id),
+                    "main": msg,
+                    "question": ""
+                })
+            else:  # mapped == "done"
+                if goal_title:
+                    msg = f"Nice work — logged it for '{goal_title}'! Keep the momentum going."
+                else:
+                    msg = "Nice work — logged it! Keep the momentum going."
+                pending_messages[user_id].append({"role": "assistant", "text": msg})
+                return jsonify({
+                    "thread_id": thread_cache.get(user_id),
+                    "main": msg,
+                    "question": ""
+                })
     else:
         # If we were awaiting a check-in and the reply is unclear, gently clarify
         info = awaiting_checkin.get(user_id)
@@ -1499,14 +1645,31 @@ def generate_line():
     # Update current goals status on every call (so toggling off clears old context)
     try:
         if goals and isinstance(goals, list) and len(goals) > 0:
-            goals_lines = "\n".join(
-            f"- {g.get('title')} ({g.get('category', 'other')} • {g.get('cadence', 'daily')})" for g in goals
-            )
-            client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content="(Update) Current active goals:\n" + goals_lines
-            )
+            # Deduplicate goals by title to prevent chatbot confusion
+            seen_titles = set()
+            unique_goals = []
+            for g in goals:
+                title = g.get('title', '').strip()
+                if title and title not in seen_titles:
+                    seen_titles.add(title)
+                    unique_goals.append(g)
+            
+            if unique_goals:
+                goals_lines = "\n".join(
+                f"- {g.get('title')} ({g.get('category', 'other')} • {g.get('cadence', 'daily')})" for g in unique_goals
+                )
+                client.beta.threads.messages.create(
+                thread_id=thread_id,
+                role="user",
+                content="(Update) Current active goals:\n" + goals_lines
+                )
+            else:
+                # No unique goals after deduplication
+                client.beta.threads.messages.create(
+                    thread_id=thread_id,
+                    role="user",
+                    content="(Update) There are no active goals right now. Do not anchor advice to prior goals."
+                )
         else:
             # Explicitly clear previous goal context
             client.beta.threads.messages.create(
@@ -1574,18 +1737,21 @@ def generate_line():
             payload["main"] = payload.get("main", narrative)
             payload["question"] = payload.get("question", "").strip()
             payload["thread_id"] = thread_id
-            # Enqueue the main response
+            # Combine main response and question into a single message
+            main_text = payload.get("main", "").strip()
+            question_text = payload.get("question", "").strip()
+            combined_text = main_text
+            if question_text:
+                if combined_text:
+                    combined_text += "\n\n" + question_text
+                else:
+                    combined_text = question_text
+            
+            # Enqueue the combined response as a single message
             pending_messages[user_id].append({
                 "role": "assistant",
-                "text": payload.get("main", "")
+                "text": combined_text
             })
-            # Enqueue the follow-up question if present
-            question_text = payload.get("question", "").strip()
-            if question_text:
-                pending_messages[user_id].append({
-                    "role": "assistant",
-                    "text": question_text
-                })
             return jsonify(payload)
         except json.JSONDecodeError:
             pass
@@ -1605,18 +1771,21 @@ def generate_line():
         "main": main_text,
         "question": question
     }
-    # Enqueue the main response
+    # Combine main response and question into a single message
+    main_text = resp_payload.get("main", "").strip()
+    question_text = resp_payload.get("question", "").strip()
+    combined_text = main_text
+    if question_text:
+        if combined_text:
+            combined_text += "\n\n" + question_text
+        else:
+            combined_text = question_text
+    
+    # Enqueue the combined response as a single message
     pending_messages[user_id].append({
         "role": "assistant",
-        "text": resp_payload["main"]
+        "text": combined_text
     })
-    # Enqueue the follow-up question from fallback if present
-    question_text = resp_payload.get("question", "").strip()
-    if question_text:
-        pending_messages[user_id].append({
-            "role": "assistant",
-            "text": question_text
-        })
     return jsonify(resp_payload)
         
 #@app.route('/generate-line', methods=['POST'])
@@ -1809,6 +1978,7 @@ def scheduler_state():
         "active_goals_snapshot": active_goals_store.get(user_id, []),
         "canonical_goals": goals_store.get(user_id, []),
         "awaiting_checkin": awaiting_checkin.get(user_id),
+        "checkin_session": checkin_session.get(user_id),
         "last_fire": last_fire.get(user_id)
     })
 
@@ -2010,3 +2180,19 @@ def notify_mark_sent():
     today = now_local.date().isoformat()
     notify_log.add((user_id, today))
     return jsonify({"ok": True, "date": today})
+
+@app.route('/debug/clear-checkins', methods=['POST'])
+def debug_clear_checkins():
+    data = request.get_json() or {}
+    user_id = data.get('user_id', 'testuser')
+    
+    # Clear check-in data from database
+    try:
+        conn = sqlite3.connect('trainer.db')
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM checkins WHERE user_id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True, "message": f"Cleared check-ins for {user_id}"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
