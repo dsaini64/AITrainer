@@ -1,0 +1,213 @@
+body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    input { width: 60px; margin-left: 10px; }
+    button { margin-top: 10px; margin-right: 10px; }
+    .output {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background-color: #fdfdfd;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    .feedback-container {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .feedback {
+  flex: 1;
+  min-width: 180px;
+  max-width: 200px;
+  box-sizing: border-box;
+  border: 1px solid #aaa;
+  background-color: #eef;
+  padding: 10px;
+  white-space: pre-wrap;
+  height: 220px; /* prevents jumping */
+  overflow-y: auto;  /* allows scroll if too long */
+}
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 20px;
+    }
+    .form-grid label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-container {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    #queryInput {
+      padding: 10px;
+      font-size: 16px;
+    }
+    #chatMessages div {
+      padding: 5px 10px;
+    }
+button{
+    background-color: #CFF6EA
+}
+.special-button{
+    background-color: #fff
+}
+
+/* Chat Interface Styles */
+.chat-interface-container {
+  position: relative;
+  width: 90%;
+  max-width: 1000px;
+  max-height: 600px;    /* slightly increased height */
+  margin: 20px auto;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;    /* keeps sidebar aligned to top of chat */
+  overflow: visible;
+}
+.chat-area {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  height: 500px;      /* fixed height */
+  min-height: 0;    /* allow inner scrolling */
+}
+#chatMessages {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  min-height: 0;    /* enable overflow within flex */
+}
+.message-row {
+  display: flex;
+  margin-bottom: 5px;
+}
+.message-row.user {
+  justify-content: flex-end;
+}
+.message-row.bot {
+  justify-content: flex-start;
+}
+.message-bubble {
+  padding: 8px 12px;
+  border-radius: 16px;
+  max-width: 75%;
+  white-space: pre-wrap;
+  background-color: #F0FFFF;
+  border: 1px solid #ccc;
+  box-shadow: none;
+}
+.recommendations-container {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.recommendation-button {
+  background-color: #f0f0f0;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 0.85em;
+  margin: 4px;
+  opacity: 0.8;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  max-width: 70%;
+  white-space: pre-wrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.recommendation-button:hover {
+  background-color: #e0e0e0;
+}
+.chat-input-row {
+  display: flex;
+  margin-top: auto;  /* stick this row at the bottom */
+}
+.chat-input {
+  flex: 4;      /* allocate four times as much space as the send button for more width */
+  padding: 10px;
+  font-size: 16px;
+  margin-right: 10px;
+}
+.send-button {
+  background-color: #CFF6EA;
+  flex: 0 0 auto;  /* keep the send button its natural width */
+}
+.sidebar {
+  position: absolute;
+  top: 15px;
+  right: -260px;    /* place it just outside the container */
+  width: 240px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.message-row.user .message-bubble {
+  margin-left: auto;   /* push bubble to the right edge */
+  margin-right: 0;     /* ensure no extra right margin */
+}
+
+.message-row.bot .message-bubble {
+  background-color: #F0FFFF;
+}
+
+.message-row.user .message-bubble {
+  background-color: #CFF6EA;
+}
+
+.activity-tracker-box {
+ padding: "16px";
+ marginTop: "20px";
+ border: "1px solid #ccc"; 
+ borderRadius: "8px"; 
+ backgroundColor: "#fdfdfd";
+}
+
+
+.dot-typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+}
+
+.dot-typing span {
+  width: 6px;
+  height: 6px;
+  background: #666;
+  border-radius: 50%;
+  animation: blink 1.4s infinite both;
+}
+
+.dot-typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dot-typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0%, 80%, 100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
