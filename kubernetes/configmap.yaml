@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: longevity-coach-config
+  namespace: longevity-coach
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  NEXT_PUBLIC_APP_URL: "https://longevity-coach.example.com"
+  NEXT_PUBLIC_SUPABASE_URL: "https://your-project.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "your-anon-key"
+  OPENAI_API_KEY: "your-openai-key"
+  REDIS_URL: "redis://redis-service:6379"
+  DATABASE_URL: "postgresql://user:password@postgres-service:5432/longevity_coach"
+  LOG_LEVEL: "info"
+  ENABLE_APM: "true"
+  ENABLE_SECURITY_MONITORING: "true"
+  ENABLE_PERFORMANCE_MONITORING: "true"
+  CACHE_TTL: "300"
+  SESSION_TIMEOUT: "1800"
+  MAX_LOGIN_ATTEMPTS: "5"
+  RATE_LIMIT_WINDOW: "60"
+  RATE_LIMIT_MAX: "100"
+
+
+
+
+
+
+
+
+
+
+
+

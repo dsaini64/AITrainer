@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+/* Class-based dark mode to support Tailwind `dark:` utilities */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Force dark mode styles for testing */
+.dark .bg-white {
+  background-color: #1f2937 !important;
+}
+
+.dark .text-slate-900 {
+  color: #f9fafb !important;
+}
+
+.dark .text-slate-700 {
+  color: #d1d5db !important;
+}
+
+.dark .text-slate-500 {
+  color: #9ca3af !important;
+}
+
+.dark .bg-slate-50 {
+  background-color: #111827 !important;
+}
+
+/* Test element styles */
+.dark .bg-red-500 {
+  background-color: #10b981 !important;
+}
+
+.dark .bg-white {
+  background-color: #1f2937 !important;
+}
+
+.dark .text-black {
+  color: #f9fafb !important;
+}
+
