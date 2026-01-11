@@ -1,4 +1,4 @@
-# 🏋️ AI Longevity Coach - Personal Health & Wellness Platform
+# AI Longevity Coach - Personal Health & Wellness Platform
 
 <div align="center">
 
@@ -9,41 +9,41 @@
 
 **An intelligent, AI-powered personal longevity coach that provides personalized health guidance, tracks progress, and helps users achieve their wellness goals through evidence-based recommendations.**
 
-[Features](#-key-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [Architecture](#-architecture) • [Demo](#-demo)
+[Features](#key-features) • [Tech Stack](#tech-stack) • [Getting Started](#getting-started) • [Architecture](#architecture) • [Demo](#demo)
 
 </div>
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Overview](#-overview)
-- [Key Features](#-key-features)
-- [Tech Stack](#-tech-stack)
-- [Architecture](#-architecture)
-- [Getting Started](#-getting-started)
-- [Project Structure](#-project-structure)
-- [API Documentation](#-api-documentation)
-- [Deployment](#-deployment)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Getting Started](#getting-started)
+- [Project Structure](#project-structure)
+- [API Documentation](#api-documentation)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
+- [License](#license)
 
-## 🎯 Overview
+## Overview
 
 AI Longevity Coach is a full-stack web application that combines **artificial intelligence**, **real-time data analytics**, and **personalized coaching** to help users improve their health and longevity. Built with modern web technologies, it features:
 
-- 🤖 **AI-Powered Coaching** with GPT-4o-mini integration
-- 📊 **Real-Time Analytics** with correlation analysis and predictive insights
-- 🔄 **RAG (Retrieval-Augmented Generation)** for evidence-based responses
-- 🛠️ **MCP (Model Context Protocol)** for dynamic tool integration
-- 📱 **Responsive Design** optimized for mobile and desktop
-- 🔐 **Secure Authentication** with Supabase Auth
-- 📈 **Health Metrics Tracking** with visualization dashboards
-- 🎯 **Goal Management** with habit tracking and adherence monitoring
+- **AI-Powered Coaching** with GPT-4o-mini integration
+- **Real-Time Analytics** with correlation analysis and predictive insights
+- **RAG (Retrieval-Augmented Generation)** for evidence-based responses
+- **MCP (Model Context Protocol)** for dynamic tool integration
+- **Responsive Design** optimized for mobile and desktop
+- **Secure Authentication** with Supabase Auth
+- **Health Metrics Tracking** with visualization dashboards
+- **Goal Management** with habit tracking and adherence monitoring
 
-## ✨ Key Features
+## Key Features
 
-### 🧠 Intelligent AI Coach
+### Intelligent AI Coach
 - **Conversational Interface**: Natural language chat with streaming responses
 - **Context-Aware**: Understands user goals, metrics, and preferences
 - **Multiple Modes**: Explain, Plan, Motivate, and Check-in modes
@@ -51,38 +51,38 @@ AI Longevity Coach is a full-stack web application that combines **artificial in
 - **MCP Tools**: Dynamic tool execution for real-time data access
 - **Safety Guardrails**: Medical emergency detection and professional guidance
 
-### 📊 Advanced Analytics
+### Advanced Analytics
 - **Correlation Analysis**: Identifies relationships between health metrics
 - **Predictive Insights**: Forecasts trends and potential health outcomes
 - **Risk Assessment**: Calculates health risk scores based on multiple factors
 - **Interactive Dashboards**: Real-time data visualization with Recharts
 - **Weekly Reports**: Comprehensive health summaries and recommendations
 
-### 🎯 Goal & Habit Tracking
+### Goal & Habit Tracking
 - **SMART Goals**: Specific, measurable goals across 6 categories
 - **Habit Ladders**: Progressive habit building with starter/solid/stretch levels
 - **Adherence Tracking**: Real-time progress monitoring with streak tracking
 - **Next Best Action**: AI-suggested optimal next steps
 
-### 📱 Device Integrations
+### Device Integrations
 - **Apple Health**: Seamless data synchronization
 - **Google Fit**: Activity and health data import
 - **Fitbit**: Wearable device integration
 - **Manual Entry**: Flexible data input options
 
-### 🔔 Proactive Coaching
+### Proactive Coaching
 - **Smart Notifications**: Context-aware reminders and nudges
 - **Quiet Hours**: Respects user-defined notification preferences
 - **Pattern Recognition**: Identifies behavioral patterns and suggests improvements
 - **Celebration Messages**: Recognizes achievements and milestones
 
-### 🔐 Security & Privacy
+### Security & Privacy
 - **Row-Level Security**: Database-level access control
 - **Encrypted Storage**: All sensitive data encrypted at rest
 - **Privacy Controls**: User-controlled data sharing and export
 - **GDPR Compliant**: Easy data export and account deletion
 
-## 🏗️ Tech Stack
+## Tech Stack
 
 ### Frontend
 - **Framework**: Next.js 15.5 with App Router
@@ -114,7 +114,7 @@ AI Longevity Coach is a full-stack web application that combines **artificial in
 - **MCP**: Model Context Protocol for tool integration
 - **Embeddings**: OpenAI text-embedding-3-small
 
-## 🏛️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -159,7 +159,7 @@ AI Longevity Coach is a full-stack web application that combines **artificial in
 5. **Type Safety**: Full TypeScript coverage with strict mode
 6. **Security**: Row-Level Security policies for data access control
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -230,7 +230,7 @@ For a complete setup, use the provided script:
 ./scripts/setup-mcp-rag.sh
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ai-longevity-coach/
@@ -267,7 +267,7 @@ ai-longevity-coach/
 └── kubernetes/           # K8s deployment configs
 ```
 
-## 📡 API Documentation
+## API Documentation
 
 ### Chat API
 
@@ -301,7 +301,7 @@ Returns comprehensive dashboard data including KPIs, progress, and next actions.
 
 See [API Documentation](./docs/API.md) for complete details.
 
-## 🚢 Deployment
+## Deployment
 
 ### Vercel (Recommended)
 
@@ -324,7 +324,7 @@ kubectl apply -f kubernetes/
 
 See [DEPLOYMENT.md](./docs/DEPLOYMENT.md) for detailed instructions.
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run tests
@@ -340,14 +340,14 @@ npm run lint
 npm run test:e2e
 ```
 
-## 📊 Performance
+## Performance
 
 - **Lighthouse Score**: 95+ Performance
 - **First Contentful Paint**: < 1.5s
 - **Time to Interactive**: < 3s
 - **API Response Time**: < 200ms average
 
-## 🔒 Security
+## Security
 
 - ✅ Row-Level Security (RLS) policies
 - ✅ SQL injection prevention
@@ -357,7 +357,7 @@ npm run test:e2e
 - ✅ Input validation
 - ✅ Secure authentication
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
@@ -367,18 +367,18 @@ Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for g
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - OpenAI for GPT-4o-mini API
 - Supabase for backend infrastructure
 - Next.js team for the amazing framework
 - Radix UI for accessible components
 
-## 📧 Contact
+## Contact
 
 **Your Name** - [your.email@example.com](mailto:your.email@example.com)
 
@@ -388,7 +388,7 @@ Project Link: [https://github.com/yourusername/ai-longevity-coach](https://githu
 
 <div align="center">
 
-**Built with ❤️ using Next.js, TypeScript, and OpenAI**
+**Built with Next.js, TypeScript, and OpenAI**
 
 ⭐ Star this repo if you find it helpful!
 
