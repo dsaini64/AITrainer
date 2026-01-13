@@ -379,7 +379,7 @@ function parseActions(actionsText: string): Array<{ type: 'timer' | 'reminder' |
   
   for (const item of actionItems) {
     let type: 'timer' | 'reminder' | 'checklist' | 'schedule' = 'checklist'
-    let title = item
+    const title = item
     
     // Detect action type based on keywords
     if (item.toLowerCase().includes('timer') || item.toLowerCase().includes('minute')) {

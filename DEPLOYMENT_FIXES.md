@@ -76,6 +76,16 @@ After pushing these changes, the pipeline should:
 ### Healthcheck Fails
 - **Solution**: Ensure the `/api/health` endpoint exists and returns a 200 status code.
 
+### CodeQL Action Deprecated
+- **Solution**: Updated to CodeQL Action v3 (init + analyze steps).
+
+### Linting Errors
+- **Solution**: Fixed all linting errors:
+  - Changed `let` to `const` where variables are never reassigned
+  - Added ESLint disable comments for necessary `require()` calls (circular dependency workaround)
+  - Changed empty interfaces to type aliases
+  - Added missing imports (MessageSquare)
+
 ## Next Steps
 
 1. Push these changes to your repository

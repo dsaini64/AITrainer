@@ -205,6 +205,8 @@ let ragRetrieverInstance: RAGRetriever | null = null
 
 export function getRAGRetriever(): RAGRetriever {
   if (!ragRetrieverInstance) {
+    // Use dynamic import to avoid circular dependencies
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getVectorStore } = require('./vector-store')
     ragRetrieverInstance = new RAGRetriever(getVectorStore())
   }

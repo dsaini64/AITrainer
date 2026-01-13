@@ -48,6 +48,8 @@ let mcpClientInstance: MCPClient | null = null
 
 export function getMCPClient(): MCPClient {
   if (!mcpClientInstance) {
+    // Use dynamic import to avoid circular dependencies
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getMCPServer } = require('./server')
     mcpClientInstance = new MCPClient(getMCPServer())
   }

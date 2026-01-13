@@ -600,7 +600,7 @@ export class IntelligentCoach {
 
     // Build specific, data-driven message
     let message = personalizedMessage
-    let actions: any[] = []
+    const actions: any[] = []
 
     if (mealRecommendation) {
       message += `\n\n🍽️ **${mealRecommendation.name}**\n${mealRecommendation.description}\n\n**Why this works for you:** ${mealRecommendation.reason}\n\n**Nutrition:** ${mealRecommendation.nutrition.protein}g protein, ${mealRecommendation.nutrition.calories} calories\n**Prep time:** ${mealRecommendation.prepTime} minutes`

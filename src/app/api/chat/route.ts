@@ -264,7 +264,7 @@ Examples:
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
-          let toolCalls: any[] = []
+          const toolCalls: any[] = []
           
           for await (const chunk of stream) {
             const delta = chunk.choices[0]?.delta

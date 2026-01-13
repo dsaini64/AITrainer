@@ -17,6 +17,10 @@ jobs:
   # Security and Quality Checks
   security-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -32,14 +36,20 @@ jobs:
         output: 'trivy-results.sarif'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: 'trivy-results.sarif'
 
-    - name: Run CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
       with:
         languages: javascript
+
+    - name: Autobuild CodeQL
+      uses: github/codeql-action/autobuild@v3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
 
   # Quality Assurance
   quality-check:
