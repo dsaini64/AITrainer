@@ -42,7 +42,7 @@ Make sure these secrets are configured in your GitHub repository settings:
 - `NEXT_PUBLIC_GOOGLE_FIT_CLIENT_ID` - Google Fit integration
 - `FITBIT_CLIENT_SECRET` - Fitbit integration
 - `NEXT_PUBLIC_FITBIT_CLIENT_ID` - Fitbit integration
-- `SLACK_WEBHOOK` - For deployment notifications (optional)
+- `SLACK_WEBHOOK_URL` - For deployment notifications (optional - Slack webhook URL)
 - `DEPLOY_TOKEN` - For deployment platform authentication
 
 ## How to Add Secrets
